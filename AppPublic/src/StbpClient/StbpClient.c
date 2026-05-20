@@ -30,6 +30,7 @@
 
 #include "StbpClient.h"
 #include "TlcMgeLoop.h"
+#include "TlcMgeStbpc.h"
 
 /***********************************************************
  *						常量定义		                       		*
