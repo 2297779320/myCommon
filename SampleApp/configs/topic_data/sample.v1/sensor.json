@@ -1,0 +1,20 @@
+{
+    "sensors": [
+        {
+            "id": 0,
+            "type": "temperature",
+            "unit": "C",
+            "minValue": -10,
+            "maxValue": 50,
+            "initialValue": 22.0
+        },
+        {
+            "id": 1,
+            "type": "humidity",
+            "unit": "%",
+            "minValue": 0,
+            "maxValue": 100,
+            "initialValue": 50.0
+        }
+    ]
+}

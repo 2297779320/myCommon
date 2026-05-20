@@ -1,0 +1,23 @@
+{
+    "appName": "SampleApp",
+    "version": "1.0.0",
+    "stbpServer": {
+        "ip": "127.0.0.1",
+        "port": 8300
+    },
+    "modules": {
+        "SysManager": {
+            "heartbeatInterval": 5000
+        },
+        "SensorHub": {
+            "sensorCount": 2,
+            "reportInterval": 2000
+        },
+        "DeviceCtrl": {
+            "deviceCount": 4
+        },
+        "UserAgent": {
+            "independentClient": true
+        }
+    }
+}
