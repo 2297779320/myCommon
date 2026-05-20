@@ -33,7 +33,8 @@ COMMON_SRCS = \
     common/cjson/cjson_extension.c \
     common/xlist.c \
     common/msgqueue.c \
-    common/module_manager.c
+    common/module_manager.c \
+    common/framework_v2.c
 
 APP_PUBLIC_SRCS = \
     AppPublic/src/StbpClient/StbpClient.c \
