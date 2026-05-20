@@ -37,7 +37,8 @@ COMMON_SRCS = \
 
 APP_PUBLIC_SRCS = \
     AppPublic/src/StbpClient/StbpClient.c \
-    AppPublic/src/StbpClient/JsonMsgDispatch.c
+    AppPublic/src/StbpClient/JsonMsgDispatch.c \
+    AppPublic/src/StbpClient/TlcMgeLoop.c
 
 SRCS = $(SAMPLE_SRCS) $(COMMON_SRCS) $(APP_PUBLIC_SRCS)
 OBJS = $(SRCS:.c=.o)

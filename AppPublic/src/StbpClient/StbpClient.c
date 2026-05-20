@@ -29,6 +29,7 @@
 //#include "DCSocket.h"
 
 #include "StbpClient.h"
+#include "TlcMgeLoop.h"
 
 /***********************************************************
  *						常量定义		                       		*
