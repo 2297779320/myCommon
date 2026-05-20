@@ -19,6 +19,55 @@
 extern "C" {
 #endif
 
+/***********************************************************
+*                    类型定义                              *
+**********************************************************/
+
+/** @brief 句柄类型 */
+typedef void* tlHdl_t;
+
+/** @brief 布尔类型 */
+typedef int tlBool;
+
+/** @brief 连接状态枚举 */
+typedef enum {
+    TLC_CONN_STATE_Disconnected = 0,
+    TLC_CONN_STATE_Connecting,
+    TLC_CONN_STATE_Connected,
+    TLC_CONN_STATE_Reconnecting,
+} TlcConnState_e;
+
+/** @brief STBP客户端配置 */
+typedef struct {
+    UINT16  port;           /**< 端口号 */
+    INT8   *pIpaddr;        /**< IP地址 */
+    INT8   *pName;          /**< 客户端名称 */
+    void   *pReserved;      /**< 保留字段 */
+} TlcStbpcCfg_t;
+
+/** @brief STBP消息结构 */
+typedef struct {
+    INT8   *topic;          /**< Topic */
+    void   *pPayload;       /**< 载荷数据 */
+    UINT32  payloadSize;    /**< 载荷长度 */
+    INT8   *reply;          /**< 回复地址 */
+    void   *pReserved;      /**< 保留字段 */
+} TlcStbpMsg_t;
+
+/** @brief 连接状态回调函数类型 */
+typedef void (*TlcConnStateCb)(tlHdl_t connHdl, TlcConnState_e preState,
+                                TlcConnState_e currState, void *pUsrCtx);
+
+/** @brief 消息订阅回调函数类型 */
+typedef void (*TlcStbpMsgCb)(tlHdl_t connHdl, TlcStbpMsg_t *pMsg, tlBool *pIsKeepMsg);
+
+/**
+ * @brief 连接状态转字符串
+ * @param state 连接状态
+ * @return 状态字符串
+ */
+const INT8* TlcConnState2Str(TlcConnState_e state);
+
 /**
  * @brief 创建STBP客户端连接
  * @param hLoop   事件循环句柄

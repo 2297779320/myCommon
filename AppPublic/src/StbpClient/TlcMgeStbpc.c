@@ -11,9 +11,29 @@
 
 #include "typedef.h"
 #include "osal.h"
+#include "TlcMgeStbpc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/***********************************************************
+*                    公开API - 工具函数                    *
+**********************************************************/
+
+/**
+ * @brief 连接状态转字符串
+ */
+const INT8* TlcConnState2Str(TlcConnState_e state)
+{
+    switch (state)
+    {
+        case TLC_CONN_STATE_Disconnected:   return "Disconnected";
+        case TLC_CONN_STATE_Connecting:     return "Connecting";
+        case TLC_CONN_STATE_Connected:      return "Connected";
+        case TLC_CONN_STATE_Reconnecting:   return "Reconnecting";
+        default:                            return "Unknown";
+    }
+}
 
 /***********************************************************
 *                    数据结构定义                          *
