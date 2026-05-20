@@ -6,11 +6,15 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
-#include "framework_def.h"
+#include "framework_v2.h"
 
-bool DeviceCtrlInit(ModuleHandle module, void* config);
-void DeviceCtrlRun(ModuleHandle module);
-void DeviceCtrlDestroy(ModuleHandle module);
+bool DeviceCtrlInit(ModuleHandleV2 module, void* config);
+void DeviceCtrlRun(ModuleHandleV2 module);
+void DeviceCtrlDestroy(ModuleHandleV2 module);
+
+/* V2 消息表导出 */
+const T_MsgProcEntryV2* GetDeviceCtrlMsgTable(void);
+uint32_t GetDeviceCtrlMsgTableLen(void);
 
 #ifdef __cplusplus
 }

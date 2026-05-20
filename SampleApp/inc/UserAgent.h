@@ -6,13 +6,16 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
-#include "framework_def.h"
+#include "framework_v2.h"
 
-bool UserAgentInit(ModuleHandle module, void* config);
-void UserAgentRun(ModuleHandle module);
-void UserAgentDestroy(ModuleHandle module);
+bool UserAgentInit(ModuleHandleV2 module, void* config);
+void UserAgentRun(ModuleHandleV2 module);
+void UserAgentDestroy(ModuleHandleV2 module);
 
 int UserAgentCmpMsgId(const char *strFmt, const char *strTopic);
+
+const T_MsgProcEntryV2* GetUserAgentMsgTable(void);
+uint32_t GetUserAgentMsgTableLen(void);
 
 #ifdef __cplusplus
 }

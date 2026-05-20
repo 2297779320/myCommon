@@ -19,8 +19,7 @@ SAMPLE_SRCS = \
     SampleApp/src/SysManager/SysManager.c \
     SampleApp/src/SensorHub/SensorHub.c \
     SampleApp/src/DeviceCtrl/DeviceCtrl.c \
-    SampleApp/src/UserAgent/UserAgent.c \
-    SampleApp/src/UserAgent/UserAgentMsg.c
+    SampleApp/src/UserAgent/UserAgent.c
 
 COMMON_SRCS = \
     common/osal.c \

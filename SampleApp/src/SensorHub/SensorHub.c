@@ -1,7 +1,7 @@
 /**************************************************************************
 *  Copyright (c) 2024
 *  File Name: SensorHub.c
-*  Description: Sensor module - simulates temperature/humidity data reporting
+*  Description: 传感器模块 - 使用 V2 框架
 **************************************************************************/
 #include <stdio.h>
 #include <string.h>
@@ -16,7 +16,7 @@
 #include "SampleApp.h"
 #include "StbpClient.h"
 #include "SensorHub.h"
-#include "framework_def.h"
+#include "framework_v2.h"
 
 /***********************************************************
 *                    Private Types                         *
@@ -32,8 +32,10 @@ typedef struct {
     TSK_Handle      hReportTsk;
     T_SensorData    atSensor[MAX_SENSOR_CNT];
     UINT32          uiSensorCnt;
-    ModuleHandle    hModule;
+    ModuleHandleV2  hModule;
 } T_SensorHub;
+
+static T_SensorHub g_stSensorHub = {0};
 
 /***********************************************************
 *                    Internal Functions                    *
@@ -95,102 +97,83 @@ static void SensorReportFxn(void *param)
 }
 
 /***********************************************************
-*                    Message Handlers                      *
+*                    V2 Message Handlers                   *
 **********************************************************/
-static void SensorHubMessageHandler(ModuleHandle module, const T_ModuleMsg* msg)
+static E_StateCode SensorHubReadHandler(
+    void *pPrivate, T_FrameworkMsgV2 *ptMsg,
+    char *pcResMsg, char **ppcResData, uint32_t *puiDataSize, bool *pbDelayRes)
 {
-    if (NULL == module || NULL == msg)
-    {
-        return;
-    }
+    (void)pPrivate;
+    (void)pcResMsg;
+    (void)pbDelayRes;
 
-    dbprintf("[SensorHub] Received message type: %u\n", msg->type);
-    /* Process module-specific messages here if needed */
+    dbprintf("[SensorHub] Read request received\n");
+    
+    /* 返回传感器数据 */
+    static char response[256];
+    snprintf(response, sizeof(response),
+             "{\"temperature\":%.1f,\"humidity\":%.1f}",
+             g_stSensorHub.atSensor[0].fTemperature,
+             g_stSensorHub.atSensor[0].fHumidity);
+    *ppcResData = response;
+    *puiDataSize = strlen(response);
+    
+    return STATE_CODE_NO_ERROR;
+}
+
+static T_MsgProcEntryV2 g_satSensorHubTable[] =
+{
+    {"$request.get.*.*.*.sample.v1.sensor.read", SensorHubReadHandler, NULL, true, true},
+    {NULL, NULL, NULL, false, false}
+};
+
+const T_MsgProcEntryV2* GetSensorHubMsgTable(void)
+{
+    return g_satSensorHubTable;
+}
+
+uint32_t GetSensorHubMsgTableLen(void)
+{
+    return 1;
 }
 
 /***********************************************************
 *                    Module Functions                      *
 **********************************************************/
-bool SensorHubInit(ModuleHandle module, void* config)
+bool SensorHubInit(ModuleHandleV2 module, void* config)
 {
-    T_SensorHub *ptPrivate = NULL;
     TSK_Attrs tAttr = DEFAULT_TSK_ATTR;
 
     (void)config;
 
-    ptPrivate = (T_SensorHub *)malloc(sizeof(T_SensorHub));
-    if (NULL == ptPrivate)
-    {
-        SysErr("malloc failed!\n");
-        return false;
-    }
-    memset(ptPrivate, 0x0, sizeof(T_SensorHub));
-
-    ptPrivate->uiSensorCnt = 2; /* Simulate 2 sensors */
-    ptPrivate->hModule = module;
-
-    /* Register message handler */
-    module_register_handler(module, 0, SensorHubMessageHandler);
+    memset(&g_stSensorHub, 0x0, sizeof(g_stSensorHub));
+    g_stSensorHub.uiSensorCnt = 2; /* Simulate 2 sensors */
+    g_stSensorHub.hModule = module;
 
     /* Create report thread */
     tAttr.name = "SensorReport";
-    ptPrivate->hReportTsk = TSK_create(SensorReportFxn, &tAttr, ptPrivate);
-    if (NULL == ptPrivate->hReportTsk)
+    g_stSensorHub.hReportTsk = TSK_create(SensorReportFxn, &tAttr, &g_stSensorHub);
+    if (NULL == g_stSensorHub.hReportTsk)
     {
         SysErr("Create report thread failed!\n");
-        free(ptPrivate);
         return false;
     }
 
-    /* Store private data in module */
-    module->private_data = ptPrivate;
-
-    dbprintf("[SensorHub] Initialized with %d sensors.\n", ptPrivate->uiSensorCnt);
+    dbprintf("[SensorHub] Initialized with %d sensors (V2).\n", g_stSensorHub.uiSensorCnt);
     return true;
 }
 
-void SensorHubRun(ModuleHandle module)
+void SensorHubRun(ModuleHandleV2 module)
 {
-    T_SensorHub *ptPrivate = NULL;
-
-    if (NULL == module)
-    {
-        return;
-    }
-
-    ptPrivate = (T_SensorHub *)module->private_data;
-    if (NULL == ptPrivate)
-    {
-        return;
-    }
-
-    /* Module run logic here - report thread handles the work */
-    /* This function is called periodically by the framework */
+    /* 消息处理由框架自动分发 */
 }
 
-void SensorHubDestroy(ModuleHandle module)
+void SensorHubDestroy(ModuleHandleV2 module)
 {
-    T_SensorHub *ptPrivate = NULL;
-
-    if (NULL == module)
+    g_stSensorHub.bDone = TRUE;
+    if (NULL != g_stSensorHub.hReportTsk)
     {
-        return;
+        TSK_delete(g_stSensorHub.hReportTsk);
     }
-
-    ptPrivate = (T_SensorHub *)module->private_data;
-    if (NULL == ptPrivate)
-    {
-        return;
-    }
-
-    ptPrivate->bDone = TRUE;
-    if (NULL != ptPrivate->hReportTsk)
-    {
-        TSK_delete(ptPrivate->hReportTsk);
-    }
-
-    free(ptPrivate);
-    module->private_data = NULL;
-
-    dbprintf("[SensorHub] Deleted.\n");
+    dbprintf("[SensorHub] Deleted (V2).\n");
 }

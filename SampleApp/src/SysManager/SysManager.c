@@ -1,7 +1,7 @@
 /**************************************************************************
 *  Copyright (c) 2024
 *  File Name: SysManager.c
-*  Description: System management module - heartbeat and lifecycle
+*  Description: 系统管理模块 - 使用 V2 框架
 **************************************************************************/
 #include <stdio.h>
 #include <string.h>
@@ -15,7 +15,7 @@
 #include "SampleApp.h"
 #include "StbpClient.h"
 #include "SysManager.h"
-#include "framework_def.h"
+#include "framework_v2.h"
 
 /***********************************************************
 *                    Private Types                         *
@@ -24,8 +24,10 @@ typedef struct {
     BOOL            bDone;
     TSK_Handle      hHeartbeatTsk;
     UINT32          uiHeartbeatCnt;
-    ModuleHandle    hModule;
+    ModuleHandleV2  hModule;
 } T_SysManager;
+
+static T_SysManager g_stSysManager = {0};
 
 /***********************************************************
 *                    Internal Functions                    *
@@ -56,100 +58,76 @@ static void HeartbeatFxn(void *param)
 }
 
 /***********************************************************
-*                    Message Handlers                      *
+*                    V2 Message Handlers                   *
 **********************************************************/
-static void SysManagerMessageHandler(ModuleHandle module, const T_ModuleMsg* msg)
+static E_StateCode SysManagerHeartbeatHandler(
+    void *pPrivate, T_FrameworkMsgV2 *ptMsg,
+    char *pcResMsg, char **ppcResData, uint32_t *puiDataSize, bool *pbDelayRes)
 {
-    if (NULL == module || NULL == msg)
-    {
-        return;
-    }
+    (void)pPrivate;
+    (void)ptMsg;
+    (void)pcResMsg;
+    (void)ppcResData;
+    (void)puiDataSize;
+    (void)pbDelayRes;
 
-    dbprintf("[SysManager] Received message type: %u\n", msg->type);
-    /* Process module-specific messages here if needed */
+    dbprintf("[SysManager] Heartbeat message received\n");
+    return STATE_CODE_NO_ERROR;
+}
+
+static T_MsgProcEntryV2 g_satSysManagerTable[] =
+{
+    {"$report.heartbeat.*.*.*.sample.v1.state", SysManagerHeartbeatHandler, NULL, true, true},
+    {NULL, NULL, NULL, false, false}
+};
+
+const T_MsgProcEntryV2* GetSysManagerMsgTable(void)
+{
+    return g_satSysManagerTable;
+}
+
+uint32_t GetSysManagerMsgTableLen(void)
+{
+    return 1;
 }
 
 /***********************************************************
 *                    Module Functions                      *
 **********************************************************/
-bool SysManagerInit(ModuleHandle module, void* config)
+bool SysManagerInit(ModuleHandleV2 module, void* config)
 {
-    T_SysManager *ptPrivate = NULL;
     TSK_Attrs tAttr = DEFAULT_TSK_ATTR;
 
     (void)config;
+    (void)module;
 
-    ptPrivate = (T_SysManager *)malloc(sizeof(T_SysManager));
-    if (NULL == ptPrivate)
-    {
-        SysErr("malloc failed!\n");
-        return false;
-    }
-    memset(ptPrivate, 0x0, sizeof(T_SysManager));
-    ptPrivate->hModule = module;
-
-    /* Register message handler */
-    module_register_handler(module, 0, SysManagerMessageHandler);
+    memset(&g_stSysManager, 0x0, sizeof(g_stSysManager));
+    g_stSysManager.hModule = module;
 
     /* Create heartbeat thread */
     tAttr.name = "SysMgrHeartbeat";
-    ptPrivate->hHeartbeatTsk = TSK_create(HeartbeatFxn, &tAttr, ptPrivate);
-    if (NULL == ptPrivate->hHeartbeatTsk)
+    g_stSysManager.hHeartbeatTsk = TSK_create(HeartbeatFxn, &tAttr, &g_stSysManager);
+    if (NULL == g_stSysManager.hHeartbeatTsk)
     {
         SysErr("Create heartbeat thread failed!\n");
-        free(ptPrivate);
         return false;
     }
 
-    /* Store private data in module */
-    module->private_data = ptPrivate;
-
-    dbprintf("[SysManager] Initialized.\n");
+    dbprintf("[SysManager] Initialized (V2).\n");
     return true;
 }
 
-void SysManagerRun(ModuleHandle module)
+void SysManagerRun(ModuleHandleV2 module)
 {
-    T_SysManager *ptPrivate = NULL;
-
-    if (NULL == module)
-    {
-        return;
-    }
-
-    ptPrivate = (T_SysManager *)module->private_data;
-    if (NULL == ptPrivate)
-    {
-        return;
-    }
-
-    /* Module run logic here - heartbeat thread handles the work */
-    /* This function is called periodically by the framework */
+    /* 消息处理由框架自动分发 */
 }
 
-void SysManagerDestroy(ModuleHandle module)
+void SysManagerDestroy(ModuleHandleV2 module)
 {
-    T_SysManager *ptPrivate = NULL;
-
-    if (NULL == module)
+    g_stSysManager.bDone = TRUE;
+    if (NULL != g_stSysManager.hHeartbeatTsk)
     {
-        return;
+        TSK_delete(g_stSysManager.hHeartbeatTsk);
     }
-
-    ptPrivate = (T_SysManager *)module->private_data;
-    if (NULL == ptPrivate)
-    {
-        return;
-    }
-
-    ptPrivate->bDone = TRUE;
-    if (NULL != ptPrivate->hHeartbeatTsk)
-    {
-        TSK_delete(ptPrivate->hHeartbeatTsk);
-    }
-
-    free(ptPrivate);
-    module->private_data = NULL;
-
-    dbprintf("[SysManager] Deleted.\n");
+    dbprintf("[SysManager] Deleted (V2).\n");
 }
