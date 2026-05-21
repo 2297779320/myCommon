@@ -1,5 +1,28 @@
-#ifndef __DEFS_H__
-#define __DEFS_H__
+/**
+ * @file defs.h
+ * @brief 项目核心定义头文件 -- 类型、宏、状态码、工具宏
+ *
+ * @details
+ * 本文件是项目中被依赖最广泛的头文件，几乎所有非叶子模块都直接或间接依赖它。
+ * 主要内容：
+ *   1. 系统头文件聚合（stdio, stdlib, pthread, socket 等）
+ *   2. 平台 SDK 头文件（soc_errno, securec, uapi_avplay 等）
+ *   3. 基本数据类型宏定义（INT8~INT64, UINT8~UINT64, BOOL 等）
+ *   4. 状态码枚举 E_StateCode
+ *   5. 工具宏（do_func, return_if_fail, SAFESTRCPY, lj_min/lj_max 等）
+ *   6. 音频相关枚举（采样率、位宽、声道模式、样本格式）
+ *
+ * @note BOOL 在本文件中以 #define 宏定义，会覆盖 ctdef.h 中的 typedef。
+ *       TRUE/FALSE 同时在 ctdef.h 和本文件中定义，值相同 (1/0)，通过 #ifndef 避免冲突。
+ *
+ * @see log.h (syserr/syswarn 宏依赖)
+ * @see common.h, ctos.h, osal.h, tsk.h, comm_que.h, framework_def.h, media.h,
+ *      JsonEx.h, JsonParse.h, debugtrace.h, ring_buffer.h, share_mem_queue.h,
+ *      jsonrpc.h, jsonrpcService.h, uart.h（被依赖）
+ */
+
+#ifndef DEFS_H
+#define DEFS_H
 #ifdef		__cplusplus
 extern		"C"
 {
@@ -9,12 +32,10 @@ extern		"C"
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <unistd.h>
 #include <features.h>
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -25,10 +46,9 @@ extern		"C"
 #include <assert.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
-#include <sys/time.h> 
+#include <sys/time.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <time.h>  
+#include <time.h>
 
 #include "securec.h"
 #include "uapi_avplay.h"
@@ -143,9 +163,7 @@ extern		"C"
 #endif
 #endif
 
-#ifndef NULL
-#define NULL (void *)0
-#endif
+/* NULL is provided by <stddef.h> */
 
 #ifndef LJFrame
 #define LJFrame void *
@@ -223,7 +241,7 @@ typedef enum
   do                                                             \
   {                                                              \
         INT32 _ret = func;                                                   \
-    if (_ret != GK_SUCCESS)                                      \
+    if (_ret != LJ_SUCCESS)                                      \
     {                                                            \
             syserr("Do [%s] failed, errorcode = 0x%x\n", #func, _ret);       \
             return _ret;                                                      \
@@ -368,7 +386,7 @@ typedef enum
 
 
 #define LJ_STR_CASE_CMP(s1, s2) strcasecmp((s1), (s2))
-#define LJ_STR_EQUAL_IGNORE_CASE(s1, s2) (STR_CASE_CMP(s1, s2) == 0)
+#define LJ_STR_EQUAL_IGNORE_CASE(s1, s2) (LJ_STR_CASE_CMP(s1, s2) == 0)
 
 #define LJ_UNUSED(x) ((x) = (x))
 

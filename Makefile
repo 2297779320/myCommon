@@ -28,6 +28,7 @@ COMMON_SRCS = \
     common/common.c \
     common/ctos.c \
     common/JsonEx.c \
+    common/JsonFile.c \
     common/cjson/cJSON.c \
     common/cjson/cjson_extension.c \
     common/xlist.c \

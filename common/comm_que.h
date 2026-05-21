@@ -1,3 +1,16 @@
+/**
+ * @file comm_que.h
+ * @brief 通用消息队列 -- 生产者/消费者模式的线程安全队列
+ *
+ * @details
+ * 提供基于空/满缓冲区的队列实现，适用于生产者-消费者场景。
+ * 内部使用 CommQue 模型：GetEmpty 获取空缓冲 → 填充数据 → PutFull 提交；
+ * GetFull 获取满缓冲 → 处理数据 → PutEmpty 归还。
+ *
+ * @see defs.h（依赖 EXTERN_C_BLOCK）
+ * @see msgqueue.h, common.h（被依赖）
+ */
+
 #ifndef COMM_QUE_H
 #define COMM_QUE_H
 #include "defs.h"

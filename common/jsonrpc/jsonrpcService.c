@@ -326,7 +326,10 @@ void JsonRpcServerReply(HANDLE hService, UINT32 uiCallId, E_StateCode eCode, voi
 
     service = (jsonrpc_service_t *)hService;
 
-    cJSON *result = cJSON_Parse(data);
+    cJSON *result = cJSON_Parse((const char *)data);
+    if (!result) {
+        result = cJSON_CreateNull();
+    }
     response_json = jsonrpc_create_response(result, cJSON_CreateNumber(uiCallId));
     cJSON_AddNumberToObject(response_json, "eCode", eCode);
 

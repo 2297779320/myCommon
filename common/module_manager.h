@@ -1,3 +1,14 @@
+/**
+ * @file module_manager.h
+ * @brief 模块管理器内部实现 -- 框架上下文、模块链表、消息处理表
+ *
+ * @details
+ * 本文件暴露框架的内部数据结构（module、framework_context），
+ * 仅供框架内部 .c 文件使用，用户层不应直接包含此文件。
+ *
+ * @see framework_def.h（依赖 ModuleInitFunc, ModuleRunFunc, ModuleDestroyFunc, msg_type_t, MessageHandler）
+ */
+
 #ifndef MODULE_MANAGER_H
 #define MODULE_MANAGER_H
 
@@ -34,7 +45,7 @@ struct framework_context {
     struct module* modules;           // 模块链表头指针
     uint32_t module_count;            // 已注册模块数量
     void* msg_queue;                  // 消息队列句柄（内部使用）
-    bool is_running;                  // 框架运行状态
+    volatile bool is_running;         // 框架运行状态
     uint32_t next_module_id;          // 下一个可用的模块ID
 };
 

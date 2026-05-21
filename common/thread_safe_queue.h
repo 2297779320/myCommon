@@ -1,3 +1,14 @@
+/**
+ * @file thread_safe_queue.h
+ * @brief 线程安全通用队列 -- 基于链表的FIFO队列
+ *
+ * @details
+ * 提供线程安全的通用队列实现，支持超时入队/出队、通配查找和批量删除。
+ * 内部使用 pthread 互斥锁 + 条件变量实现线程同步。
+ *
+ * @see request_que.h（被依赖）
+ */
+
 #ifndef THREAD_SAFE_QUEUE_H
 #define THREAD_SAFE_QUEUE_H
 
@@ -35,7 +46,7 @@ void queue_destroy(Queue *queue);  // 销毁队列并释放所有剩余数据
 int queue_enqueue(Queue *queue, void *data, size_t data_size);  // 入队后数据由队列管理
 void *queue_dequeue(Queue *queue, size_t *data_size);  // 出队后数据由用户接管并释放
 bool queue_is_empty(const Queue *queue);
-size_t queue_size(const Queue *queue);
+size_t queue_size(Queue *queue);
 void queue_clear(Queue *queue);  // 清空队列并释放所有数据
 
 // 线程安全相关函数声明

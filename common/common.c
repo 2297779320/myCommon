@@ -7,56 +7,49 @@ int string_to_argv(const char *cmd_line, char ***argv)
     char *line = strdup(cmd_line);
     if (!line) return 0;
 
+    /* 单次遍历: 动态分配 argv 数组 */
     int count = 0;
-
-    /* 第一次遍历计算参数数量 */
-    char *temp = strdup(cmd_line);
-    if (!temp) {
-        free(line);
-        return 0;
-    }
-    char *token = strtok(temp, " ");
-    while (token != NULL)
-    {
-        count++;
-        token = strtok(NULL, " ");
-    }
-    free(temp);
-
-    if (count == 0) {
-        free(line);
-        *argv = NULL;
-        return 0;
-    }
-
-    /* 分配 argv 数组 */
-    *argv = (char **)malloc((count + 1) * sizeof(char *));
+    int capacity = 16;
+    *argv = (char **)malloc(capacity * sizeof(char *));
     if (!*argv) {
         free(line);
         return 0;
     }
 
-    /* 第二次遍历填充参数 */
-    token = strtok(line, " ");
-    for (int i = 0; i < count; i++)
+    char *saveptr = NULL;
+    char *token = strtok_r(line, " ", &saveptr);
+    while (token != NULL)
     {
-        if (!token) {
-            /* 理论上不应发生，防御性处理 */
-            (*argv)[i] = NULL;
-        } else {
-            (*argv)[i] = strdup(token);
-            if (!(*argv)[i]) {
-                /* strdup 失败，释放已分配的所有项 */
-                for (int j = 0; j < i; j++) free((*argv)[j]);
+        if (count >= capacity) {
+            capacity *= 2;
+            char **new_argv = (char **)realloc(*argv, capacity * sizeof(char *));
+            if (!new_argv) {
+                for (int j = 0; j < count; j++) free((*argv)[j]);
                 free(*argv);
                 *argv = NULL;
                 free(line);
                 return 0;
             }
-            token = strtok(NULL, " ");
+            *argv = new_argv;
         }
+        (*argv)[count] = strdup(token);
+        if (!(*argv)[count]) {
+            for (int j = 0; j < count; j++) free((*argv)[j]);
+            free(*argv);
+            *argv = NULL;
+            free(line);
+            return 0;
+        }
+        count++;
+        token = strtok_r(NULL, " ", &saveptr);
     }
-    (*argv)[count] = NULL;
+
+    if (count == 0) {
+        free(*argv);
+        *argv = NULL;
+    } else {
+        (*argv)[count] = NULL;
+    }
 
     free(line);
     return count;
@@ -64,6 +57,7 @@ int string_to_argv(const char *cmd_line, char ***argv)
 
 void free_argv(char **argv, int argc)
 {
+    if (!argv) return;
     for (int i = 0; i < argc; i++)
     {
         free(argv[i]);
@@ -74,7 +68,7 @@ void free_argv(char **argv, int argc)
 static const struct
 {
     uapi_acodec_id acodec_id;
-    INT8 *str;
+    const INT8 *str;
 } g_acodec_str_map[] = {
     {UAPI_ACODEC_ID_PCM, "pcm"},
     {UAPI_ACODEC_ID_MP2, "mp2"},
@@ -104,7 +98,7 @@ static const struct
 static const struct
 {
     uapi_vcodec_type vcodec_id;
-    INT8 *str;
+    const INT8 *str;
 } g_vcodec_str_map[] = {
     {UAPI_VCODEC_TYPE_MPEG2, "mpeg2"}, // h.262
     {UAPI_VCODEC_TYPE_MPEG4, "mpeg4"}, // MPEG-4 Part 2
@@ -161,8 +155,9 @@ INT8 *get_acodec_str(UINT32 acodec_id)
     return NULL;
 }
 
-INT32 get_acodec_type(INT8 *acodec_str)
+INT32 get_acodec_type(const INT8 *acodec_str)
 {
+    if (!acodec_str) return 0xffffffff;
     INT32 map_size = (INT32)(sizeof(g_acodec_str_map) / sizeof(g_acodec_str_map[0]));
 
     for (int i = 0; i < map_size; i++)
@@ -175,8 +170,9 @@ INT32 get_acodec_type(INT8 *acodec_str)
     return 0xffffffff;
 }
 
-INT32 get_vcodec_type(INT8 *vcodec_str)
+INT32 get_vcodec_type(const INT8 *vcodec_str)
 {
+    if (!vcodec_str) return UAPI_VCODEC_TYPE_MAX;
     INT32 map_size = (INT32)(sizeof(g_vcodec_str_map) / sizeof(g_vcodec_str_map[0]));
 
     for (int i = 0; i < map_size; i++)

@@ -1,3 +1,17 @@
+/**
+ * @file media.h
+ * @brief 媒体类型定义 -- 音视频编解码、TS复用、转码参数等数据结构
+ *
+ * @details
+ * 定义项目中所有媒体相关的数据结构：编码参数（T_VEncInfo/T_AEncInfo）、
+ * TS 复用参数（T_TsMuxInfo）、转码参数、流信息、播放上下文等。
+ * 同时包含 FFmpeg 头文件引入。
+ *
+ * @see defs.h（依赖 E_StateCode, BOOL, UINT32, INT8, String16/32/64/128, PATH_MAX_SIZE 等）
+ * @see FFmpeg (libavformat, libavutil, libavcodec, libswscale)（依赖）
+ * @see msgqueue.h, JsonParsePriv.h（被依赖）
+ */
+
 #ifndef MEDIA_H_
 #define MEDIA_H_
 #include "libavformat/avformat.h"
@@ -292,7 +306,7 @@ typedef enum
     ENC_CONFIG_DECODE_PID = 0x08,
     ENC_CONFIG_DECODE_PARAM = 0x10,
 
-    ENC_CONFIG_MAX = 0x8
+    ENC_CONFIG_MAX = 0x20
 } enc_media_config;
 
 typedef struct

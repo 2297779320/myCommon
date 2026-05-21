@@ -26,6 +26,20 @@
 #include "time.h"
 #include <string.h>
 
+/* AWTK 兼容宏映射到 defs.h 中的定义 */
+#ifndef tk_max
+#define tk_max(a, b) lj_max(a, b)
+#endif
+#ifndef tk_min
+#define tk_min(a, b) lj_min(a, b)
+#endif
+#ifndef TKMEM_ALLOC
+#define TKMEM_ALLOC(size) LJMEM_ALLOC(size)
+#endif
+#ifndef TKMEM_FREE
+#define TKMEM_FREE(ptr) LJMEM_FREE(ptr)
+#endif
+
 /* 平台相关的等待函数 */
 #ifdef WIN32
 static DWORD get_current_time_ms() {

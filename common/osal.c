@@ -2,6 +2,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <stdint.h>
+#include <errno.h>
 
 osal_timestamp_t osal_get_current_timestamp()
 {
@@ -95,4 +96,74 @@ UINT32 get_monotonic_ms(void)
     }
     // 只取低32位，允许自然回绕
     return (UINT32)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+}
+
+/* 信号量实现 */
+
+int OSAL_SemaphoreInit(T_SemaphoreObj* sem, int max_count, int initial_count)
+{
+    if (!sem || max_count <= 0 || initial_count < 0 || initial_count > max_count)
+        return -1;
+    if (sem_init(&sem->semaphore, 0, (unsigned int)initial_count) != 0)
+        return -1;
+    sem->max_count = max_count;
+    sem->initial_count = initial_count;
+    return 0;
+}
+
+void OSAL_SemaphoreDestroy(T_SemaphoreObj* sem)
+{
+    if (!sem) return;
+    sem_destroy(&sem->semaphore);
+}
+
+int OSAL_SemaphoreWait(T_SemaphoreObj* sem, int timeout_ms)
+{
+    if (!sem) return -1;
+    if (timeout_ms < 0) {
+        /* 无限等待 */
+        while (sem_wait(&sem->semaphore) != 0) {
+            if (errno != EINTR) return -1;
+        }
+        return 0;
+    } else if (timeout_ms == 0) {
+        /* 非阻塞 */
+        return (sem_trywait(&sem->semaphore) == 0) ? 0 : -1;
+    } else {
+        /* 带超时等待 */
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_sec += timeout_ms / 1000;
+        ts.tv_nsec += (timeout_ms % 1000) * 1000000L;
+        if (ts.tv_nsec >= 1000000000L) {
+            ts.tv_sec++;
+            ts.tv_nsec -= 1000000000L;
+        }
+        while (sem_timedwait(&sem->semaphore, &ts) != 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        return 0;
+    }
+}
+
+int OSAL_SemaphorePost(T_SemaphoreObj* sem)
+{
+    if (!sem) return -1;
+    return (sem_post(&sem->semaphore) == 0) ? 0 : -1;
+}
+
+int OSAL_SemaphoreTryWait(T_SemaphoreObj* sem)
+{
+    if (!sem) return -1;
+    return (sem_trywait(&sem->semaphore) == 0) ? 0 : -1;
+}
+
+int OSAL_SemaphoreGetValue(T_SemaphoreObj* sem)
+{
+    if (!sem) return -1;
+    int value = 0;
+    if (sem_getvalue(&sem->semaphore, &value) != 0)
+        return -1;
+    return value;
 }

@@ -103,7 +103,7 @@ E_StateCode get_interface_ip(char *ipdst) {
     
     syslog("Interface eth1 IP: %s\n", ip);
 
-    SAFESTRCPY(ipdst, ip, sizeof(ip));
+    SAFESTRCPY(ipdst, ip, INET_ADDRSTRLEN);
     
     close(sockfd);
     return eCode;
@@ -681,6 +681,11 @@ E_StateCode debug_destroy()
 
     if (g_tDebugServer->hDebugTsk) {
         g_tDebugServer->bTskDone = TRUE;
+        /* 关闭 server socket 以解除 accept() 阻塞 */
+        if (g_tDebugServer->server_socket >= 0) {
+            close(g_tDebugServer->server_socket);
+            g_tDebugServer->server_socket = -1;
+        }
         TSK_delete(g_tDebugServer->hDebugTsk);
         g_tDebugServer->hDebugTsk = NULL;
     }

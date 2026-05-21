@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat D:/github/myCommon/.qoder/settings.json | python3 -m json.tool 2>/dev/null || cat D:/github/myCommon/.qoder/settings.json | python -m json.tool 2>/dev/null || echo \"Python not available for JSON validation\")",
+      "Bash(cd D:/github/myCommon && make clean 2>&1 | tail -3 && make 2>&1 | tail -20)",
+      "Bash(sed -n '1325,1329p' D:/github/myCommon/AppPublic/src/StbpClient/StbpClient.c | cat -A)",
+      "Bash(sed:*)",
+      "Bash(git:*)",
+      "Bash(git -C D:/github/myCommon diff common/comm_que.c | head -120)",
+      "Bash(git -C D:/github/myCommon diff common/comm_que.c | tail -40)"
+    ]
+  }
+}

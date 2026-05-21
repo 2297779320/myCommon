@@ -1,3 +1,15 @@
+/**
+ * @file jsonrpcService.h
+ * @brief JSON-RPC 服务端 -- TCP 监听、方法注册、请求分发与回复
+ *
+ * @details
+ * 提供 JSON-RPC 服务端的创建、方法注册/注销、启动/停止，
+ * 以及消息的分配、释放和回复接口。
+ *
+ * @see jsonrpc.h（依赖 T_JsonRpcMsg, cJSON, E_StateCode, HANDLE）
+ * @see defs.h（依赖）
+ */
+
 #ifndef JSONRPC_SERVICE_H
 #define JSONRPC_SERVICE_H
 

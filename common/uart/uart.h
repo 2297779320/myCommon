@@ -1,5 +1,17 @@
-#ifndef __UART_H__
-#define __UART_H__
+/**
+ * @file uart.h
+ * @brief 串口通信模块 -- UART 端口初始化、读写回调
+ *
+ * @details
+ * 提供串口（UART）的初始化和反初始化接口，支持异步读取回调。
+ * 内部使用 pthread 线程进行数据接收。
+ *
+ * @see defs.h（依赖 E_StateCode, INT32, UINT8）
+ * @see common.h（依赖 T_MutexObj）
+ */
+
+#ifndef UART_H
+#define UART_H
 #include "common/defs.h"
 #include "common/common.h"
 
@@ -40,4 +52,4 @@ typedef struct
 E_StateCode init_uart(uart_param_t* param);
 E_StateCode deinit_uart(uart_param_t* param);
 
-#endif
+#endif // UART_H

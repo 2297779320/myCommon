@@ -40,13 +40,17 @@ static void destroy_node(QueueNode *node) {
 // 销毁队列(释放所有剩余数据)
 void queue_destroy(Queue *queue) {
     if (!queue) return;
-    
+
     pthread_mutex_lock(&queue->mutex);
     queue->is_destroyed = true;
     pthread_cond_broadcast(&queue->cond);
+    pthread_mutex_unlock(&queue->mutex);
+
+    /* 等待所有 cond_wait 中的线程重新获取 mutex 并检查 is_destroyed 后退出 */
+    pthread_mutex_lock(&queue->mutex);
     queue_clear(queue);  // 清空并释放所有数据
     pthread_mutex_unlock(&queue->mutex);
-    
+
     pthread_mutex_destroy(&queue->mutex);
     pthread_cond_destroy(&queue->cond);
     free(queue);
@@ -281,12 +285,12 @@ bool queue_is_empty(Queue *queue) {
 }
 
 // 获取队列大小（外部调用版本，自行加锁）
-size_t queue_size(const Queue *queue) {
+size_t queue_size(Queue *queue) {
     if (!queue) return 0;
     size_t size;
-    pthread_mutex_lock((pthread_mutex_t *)&queue->mutex);
+    pthread_mutex_lock(&queue->mutex);
     size = queue->size;
-    pthread_mutex_unlock((pthread_mutex_t *)&queue->mutex);
+    pthread_mutex_unlock(&queue->mutex);
     return size;
 }
 

@@ -1,23 +1,12 @@
 /**
- * File:   ring_queue.h
- * Author: AWTK Develop Team
- * Brief:  ring_queue (基于ring_buffer的上层封装，线程安全，支持超时)
+ * @file ring_queue.h
+ * @brief 环形队列 -- 基于 ring_buffer 的上层封装，按元素操作
  *
- * Copyright (c) 2018 - 2025 Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * @details
+ * 在 ring_buffer 之上封装的按元素操作接口，隐藏字节级细节。
+ * 支持单元素/批量推入弹出、peek、超时等待、状态查询等。
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * License file for more details.
- *
- */
-
-/**
- * History:
- * ================================================================
- * 2025-12-05 Created as wrapper around ring_buffer for easier usage
- * 2025-12-05 添加超时机制和线程安全支持 (版本3)
- *
+ * @see ring_buffer.h（依赖 ring_buffer_t, E_StateCode, UINT32, BOOL）
  */
 
 #ifndef TK_RING_QUEUE_H

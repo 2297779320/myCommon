@@ -115,16 +115,15 @@ static E_StateCode SensorHubReadHandler(
              "{\"temperature\":%.1f,\"humidity\":%.1f}",
              g_stSensorHub.atSensor[0].fTemperature,
              g_stSensorHub.atSensor[0].fHumidity);
-    *ppcResData = response;
-    *puiDataSize = strlen(response);
+    SET_RESPONSE_DATA(ppcResData, puiDataSize, response);
     
     return STATE_CODE_NO_ERROR;
 }
 
 static T_MsgProcEntryV2 g_satSensorHubTable[] =
 {
-    {"$request.get.*.*.*.sample.v1.sensor.read", SensorHubReadHandler, NULL, true, true},
-    {NULL, NULL, NULL, false, false}
+    MSG_HANDLER_TOPIC("$request.get.*.*.*.sample.v1.sensor.read", SensorHubReadHandler),
+    MSG_TABLE_END
 };
 
 const T_MsgProcEntryV2* GetSensorHubMsgTable(void)
@@ -134,7 +133,7 @@ const T_MsgProcEntryV2* GetSensorHubMsgTable(void)
 
 uint32_t GetSensorHubMsgTableLen(void)
 {
-    return 1;
+    return MSG_TABLE_LEN(g_satSensorHubTable);
 }
 
 /***********************************************************

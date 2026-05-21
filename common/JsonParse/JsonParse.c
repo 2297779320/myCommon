@@ -10,16 +10,16 @@
 #include "cjson/cJSON.h"
 #include "common/common.h"
 /***********************************************************
- *						³£Á¿¶¨Òå		                       		*
+ *						ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½		                       		*
  **********************************************************/
 
 /***********************************************************
- *				ÎÄ¼şÄÚ²¿Ê¹ÓÃµÄºê                      *
+ *				ï¿½Ä¼ï¿½ï¿½Ú²ï¿½Ê¹ï¿½ÃµÄºï¿½                      *
  **********************************************************/
 
 
  /***********************************************************
- *			ÎÄ¼şÄÚ²¿Ê¹ÓÃµÄÊı¾İÀàĞÍ 	*
+ *			ï¿½Ä¼ï¿½ï¿½Ú²ï¿½Ê¹ï¿½Ãµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 	*
  **********************************************************/
 typedef E_StateCode (*Json2Bin)(INT8 *strJson, void *pBinSetup);
 typedef E_StateCode (*Bin2Json)(void *pBinSetup, INT8 **pstrJson);
@@ -32,11 +32,11 @@ typedef struct
 }T_MediaJsonParse;
 
 /***********************************************************
- *						È«¾Ö±äÁ¿						*
+ *						È«ï¿½Ö±ï¿½ï¿½ï¿½						*
  **********************************************************/
 
 /***********************************************************
- *						±¾µØ±äÁ¿						*
+ *						ï¿½ï¿½ï¿½Ø±ï¿½ï¿½ï¿½						*
  **********************************************************/
 static T_ListJsonMng	g_satJsonList[] = 
 {
@@ -53,7 +53,7 @@ static T_ListJsonMng	g_satJsonList[] =
 };
 
 /***********************************************************
-* 						±¾µØº¯Êı						*
+* 						ï¿½ï¿½ï¿½Øºï¿½ï¿½ï¿½						*
 **********************************************************/
 static E_StateCode MOChBaseInfoJson2Bin(INT8 *strJson, T_MOChBaseInfo *ptBinSetup)
 {
@@ -71,15 +71,18 @@ static E_StateCode MOChBaseInfoJson2Bin(INT8 *strJson, T_MOChBaseInfo *ptBinSetu
 	if(ptemp == NULL)
 	{
 		syswarn("Do not find prog_id, %s!\n", strJson);
-		return STATE_CODE_INVALID_PARAM;
+		eCode = STATE_CODE_INVALID_PARAM;
+		goto cleanup;
 	}
 
-	if (!cJSON_IsNumber(ptemp)) 
+	if (!cJSON_IsNumber(ptemp))
 	{
-        return STATE_CODE_INVALID_PARAM;
-    }
+		eCode = STATE_CODE_INVALID_PARAM;
+		goto cleanup;
+	}
 	ptBinSetup->prog_id = ptemp->valuedouble;
 
+cleanup:
 	cJSON_Delete(ptCjson);
 	return eCode;
 }
@@ -116,7 +119,7 @@ static T_MediaJsonParse g_satJsonParse[] =
 };
 
 /***********************************************************
-* 					 È«¾Öº¯Êı						 *
+* 					 È«ï¿½Öºï¿½ï¿½ï¿½						 *
 **********************************************************/
 
 static E_StateCode MediaParseSpecificListElement(INT8 *strListType, INT8 *strJson, void **ppData)
@@ -227,11 +230,13 @@ E_StateCode JsonMakeListElement(T_ListJsonMng *ptTable, INT8 *strListType, void 
 	strjson = cjson_encode_struct_to_json(pData, ptMng->ptKey);
 	if (NULL == strjson)
 	{
-		syserr("cjson_encode_struct_to_cjson failed, %s.\n", pData);
+		syserr("cjson_encode_struct_to_cjson failed, pData=%p.\n", pData);
 		return STATE_CODE_ALLOCATION_FAILURE;
 	}
 
-	SAFESTRCPY(*ppstrJson, strjson, strlen(strjson) + 1);
+	/* æ³¨æ„: *ppstrJson å¿…é¡»ç”±è°ƒç”¨æ–¹åˆ†é…è¶³å¤Ÿç©ºé—´ï¼ˆè‡³å°‘ strlen(strjson)+1 å­—èŠ‚ï¼‰ */
+	size_t json_len = strlen(strjson);
+	memcpy(*ppstrJson, strjson, json_len + 1);
 	LJMEM_FREE(strjson);
 	return STATE_CODE_NO_ERROR;
 }

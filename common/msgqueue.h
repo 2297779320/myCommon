@@ -1,5 +1,18 @@
-#ifndef __MSG_QUEUE_H__
-#define __MSG_QUEUE_H__
+/**
+ * @file msgqueue.h
+ * @brief 消息队列封装 -- 基于 CommQue 的 T_Msg 消息队列
+ *
+ * @details
+ * 在 CommQue 之上封装的高级消息队列，专门用于 T_Msg 消息的收发。
+ * 提供创建、销毁、发送、接收、归还消息等操作。
+ *
+ * @see comm_que.h（依赖 CommQueID）
+ * @see defs.h（依赖 E_StateCode）
+ * @see media.h（依赖 T_Msg）
+ */
+
+#ifndef MSGQUEUE_H
+#define MSGQUEUE_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -63,4 +76,4 @@ E_StateCode msg_queue_release_msg(MsgQueueHandle* handle, T_Msg* msg);
  */
 uint32_t msg_queue_get_pending_count(MsgQueueHandle* handle);
 
-#endif // __MSG_QUEUE_V2_H__
+#endif // MSGQUEUE_H

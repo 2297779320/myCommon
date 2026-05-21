@@ -1,3 +1,14 @@
+/**
+ * @file jsonrpcClient.h
+ * @brief JSON-RPC 客户端 -- 通过 TCP 连接发起远程方法调用
+ *
+ * @details
+ * 提供 JSON-RPC 客户端的创建、销毁和同步远程调用接口。
+ * 底层通过 TCP socket 与 JSON-RPC 服务端通信。
+ *
+ * @see jsonrpc.h（依赖 cJSON, E_StateCode, HANDLE）
+ */
+
 #ifndef JSONRPC_CLIENT_H
 #define JSONRPC_CLIENT_H
 

@@ -1,3 +1,15 @@
+/**
+ * @file request_que.h
+ * @brief 异步请求队列 -- 基于uthash的请求管理与回调机制
+ *
+ * @details
+ * 提供异步/同步请求提交、完成回调、超时取消等功能。
+ * 内部使用 thread_safe_queue 作为待处理队列，uthash 作为请求索引表。
+ *
+ * @see thread_safe_queue.h, uthash.h（依赖）
+ * @see common.h（被依赖）
+ */
+
 #ifndef REQUEST_QUEUE_H
 #define REQUEST_QUEUE_H
 #include <stdbool.h>

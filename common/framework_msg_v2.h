@@ -110,6 +110,89 @@ const char* GetTopicIdV2(const char *topic);
  */
 const char* GetClientIdV2(const char *topic);
 
+/***********************************************************
+*                    便利宏定义                            *
+**********************************************************/
+
+/**
+ * @brief 定义消息处理表结束标记
+ * @usage: T_MsgProcEntryV2 table[] = { {...}, MSG_TABLE_END };
+ */
+#define MSG_TABLE_END  {NULL, NULL, NULL, false, false}
+
+/**
+ * @brief 定义带Topic匹配的消息处理表项
+ * @param topic   Topic模式（支持*通配符）
+ * @param handler 处理函数
+ */
+#define MSG_HANDLER_TOPIC(topic, handler) \
+    { (topic), (handler), NULL, true, true }
+
+/**
+ * @brief 定义精确匹配的消息处理表项
+ * @param msgId   消息ID（精确匹配）
+ * @param handler 处理函数
+ */
+#define MSG_HANDLER_EXACT(msgId, handler) \
+    { (msgId), (handler), NULL, true, false }
+
+/**
+ * @brief 定义带私有数据的消息处理表项
+ * @param topic   Topic模式
+ * @param handler 处理函数
+ * @param private 私有数据指针
+ */
+#define MSG_HANDLER_WITH_DATA(topic, handler, private) \
+    { (topic), (handler), (private), true, true }
+
+/**
+ * @brief 获取消息表长度（自动计算）
+ * @param table 消息表数组名
+ * @return 表项数量（不含结束标记）
+ */
+#define MSG_TABLE_LEN(table) \
+    (sizeof(table) / sizeof(T_MsgProcEntryV2) - 1)
+
+/**
+ * @brief 模块便捷发送消息宏
+ * @param module   模块句柄
+ * @param msgId    消息标识
+ * @param data     数据指针
+ * @param len      数据长度
+ */
+#define MODULE_SEND_MSG(module, msgId, data, len) \
+    module_v2_send_message((module), 0, (msgId), NULL, 0, (len), (data), 0, OSAL_TIMEOUT_NONE)
+
+/**
+ * @brief 模块发送响应宏
+ * @param module    模块句柄
+ * @param request   请求消息
+ * @param response  响应数据
+ * @param len       响应长度
+ */
+#define MODULE_SEND_RESPONSE(module, request, response, len) \
+    framework_v2_send_response(((struct module_v2*)(module))->framework, \
+                               (request), (request)->strMsgId, (len), (response))
+
+/**
+ * @brief 设置延迟响应标志
+ * @param pbDelayRes 延迟响应标志指针
+ */
+#define SET_DELAY_RESPONSE(pbDelayRes) \
+    do { if (pbDelayRes) *(pbDelayRes) = true; } while(0)
+
+/**
+ * @brief 设置响应数据
+ * @param ppcResData  响应数据指针
+ * @param puiDataSize 响应长度指针
+ * @param data        响应数据
+ */
+#define SET_RESPONSE_DATA(ppcResData, puiDataSize, data) \
+    do { \
+        if (ppcResData) *(ppcResData) = (char*)(data); \
+        if (puiDataSize) *(puiDataSize) = strlen(data); \
+    } while(0)
+
 #ifdef __cplusplus
 }
 #endif

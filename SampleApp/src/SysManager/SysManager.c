@@ -77,8 +77,8 @@ static E_StateCode SysManagerHeartbeatHandler(
 
 static T_MsgProcEntryV2 g_satSysManagerTable[] =
 {
-    {"$report.heartbeat.*.*.*.sample.v1.state", SysManagerHeartbeatHandler, NULL, true, true},
-    {NULL, NULL, NULL, false, false}
+    MSG_HANDLER_TOPIC("$report.heartbeat.*.*.*.sample.v1.state", SysManagerHeartbeatHandler),
+    MSG_TABLE_END
 };
 
 const T_MsgProcEntryV2* GetSysManagerMsgTable(void)
@@ -88,7 +88,7 @@ const T_MsgProcEntryV2* GetSysManagerMsgTable(void)
 
 uint32_t GetSysManagerMsgTableLen(void)
 {
-    return 1;
+    return MSG_TABLE_LEN(g_satSysManagerTable);
 }
 
 /***********************************************************

@@ -1,5 +1,19 @@
-#ifndef __LOG_H__
-#define __LOG_H__
+/**
+ * @file log.h
+ * @brief 日志模块接口（叶子节点，无项目内依赖）
+ *
+ * @details
+ * 提供分级日志输出功能（DEBUG/INFO/WARNING/ERROR），支持同时输出到控制台和文件。
+ * 通过宏 syslog/syserr/syswarn/sysdebug 自动记录文件名、函数名和行号。
+ * 支持注册调试跟踪回调函数（LJDebugtraceCb）用于外部日志转发。
+ *
+ * @note 线程安全: log_write 内部使用 log_mutex 保护。
+ *
+ * @see defs.h（通过 defs.h 被几乎所有模块间接依赖）
+ */
+
+#ifndef LOG_H
+#define LOG_H
 
 // 日志级别定义
 typedef enum {

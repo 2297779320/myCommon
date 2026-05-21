@@ -1,5 +1,16 @@
-#ifndef __DEBUGTRACE_H__
-#define __DEBUGTRACE_H__
+/**
+ * @file debugtrace.h
+ * @brief 调试跟踪模块接口
+ *
+ * @details
+ * 提供调试跟踪服务的初始化和销毁功能。
+ * 调试跟踪服务用于远程调试命令处理、心跳检测等。
+ *
+ * @see defs.h（依赖 E_StateCode）
+ */
+
+#ifndef DEBUGTRACE_H
+#define DEBUGTRACE_H
 
 
 #include <stdio.h>
@@ -35,4 +46,4 @@ E_StateCode debug_init(void *pMOCtx, void *pMICtx);
 ***********************************************************************/
 E_StateCode debug_destroy();
 
-#endif // __DEBUGTRACE_H__
+#endif // DEBUGTRACE_H

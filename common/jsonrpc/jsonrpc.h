@@ -1,3 +1,15 @@
+/**
+ * @file jsonrpc.h
+ * @brief JSON-RPC 2.0 协议基础层 -- 请求/响应/错误对象构建
+ *
+ * @details
+ * 实现 JSON-RPC 2.0 规范的核心工具函数：创建请求、响应、错误对象，
+ * 以及错误码到消息字符串的映射。
+ *
+ * @see cJSON.h, defs.h（依赖 E_StateCode, String64, UINT32, HANDLE）
+ * @see jsonrpcClient.h, jsonrpcService.h（被依赖）
+ */
+
 #ifndef JSONRPC_H
 #define JSONRPC_H
 

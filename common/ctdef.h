@@ -1,8 +1,19 @@
+/**
+ * @file ctdef.h
+ * @brief 基础类型定义层（叶子节点，无任何项目内依赖）
+ *
+ * @details
+ * 本文件定义了整个项目最底层的基本数据类型（U8/U16/U32/U64/S8/S16/S32/S64/BOOL）
+ * 以及通用常量和设备相关类型。不包含任何 #include 指令，可独立编译。
+ *
+ * @note defs.h 中也定义了 BOOL/TRUE/FALSE，但以宏形式覆盖。
+ *       ctos.h 同时包含两者，依赖头文件守卫防止重复定义。
+ *
+ * @see ctos.h, tsk.h（被依赖）
+ */
 
-/* Define to prevent recursive inclusion */
-#ifndef __CTDEF_H
-#define __CTDEF_H
-
+#ifndef CTDEF_H
+#define CTDEF_H
 
 /* Exported Types ---------------------------------------------------------- */
 
@@ -39,7 +50,8 @@ typedef signed int   S32;
 #endif
 
 #ifndef DEFINED_BOOL
-#define DEFINED_BOOL int;
+#define DEFINED_BOOL
+typedef int BOOL;
 #endif
 
 #ifndef DEFINED_U64
@@ -83,10 +95,10 @@ typedef volatile unsigned int DU32;
 #endif
 /* BOOL type constant values */
 #ifndef TRUE
-    #define TRUE (1 == 1)
+    #define TRUE (1)
 #endif
 #ifndef FALSE
-    #define FALSE (!TRUE)
+    #define FALSE (0)
 #endif
 
 /* Maximun name length supported in cmw */

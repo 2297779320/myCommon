@@ -67,9 +67,9 @@ static E_StateCode UserAgentExternalMsgHandler(
 
 static T_MsgProcEntryV2 g_satUserAgentTable[] =
 {
-    {"$request.*.*.*.*.sample.*", UserAgentExternalMsgHandler, NULL, true, true},
-    {"$report.*.*.*.*.sample.*",  UserAgentExternalMsgHandler, NULL, true, true},
-    {NULL, NULL, NULL, false, false}
+    MSG_HANDLER_TOPIC("$request.*.*.*.*.sample.*", UserAgentExternalMsgHandler),
+    MSG_HANDLER_TOPIC("$report.*.*.*.*.sample.*",  UserAgentExternalMsgHandler),
+    MSG_TABLE_END
 };
 
 const T_MsgProcEntryV2* GetUserAgentMsgTable(void)
@@ -79,7 +79,7 @@ const T_MsgProcEntryV2* GetUserAgentMsgTable(void)
 
 uint32_t GetUserAgentMsgTableLen(void)
 {
-    return 2;
+    return MSG_TABLE_LEN(g_satUserAgentTable);
 }
 
 /***********************************************************
@@ -138,7 +138,7 @@ bool UserAgentInit(ModuleHandleV2 module, void* config)
     dbprintf("[UserAgent] Subscribed to topics (V2).\n");
 
     /* 将私有数据关联到模块 */
-    module->private_data = ptPrivate;
+    MODULE_SET_PRIVATE(module, ptPrivate);
 
     return true;
 }
@@ -150,7 +150,7 @@ void UserAgentRun(ModuleHandleV2 module)
 
     if (NULL == module) return;
 
-    ptPrivate = (T_UserAgent *)module->private_data;
+    ptPrivate = (T_UserAgent *)MODULE_GET_PRIVATE(module);
     if (NULL == ptPrivate || NULL == ptPrivate->hUser) return;
 
     /* Wait for STBP connection */
@@ -174,17 +174,10 @@ void UserAgentRun(ModuleHandleV2 module)
     dbprintf("[UserAgent] Received topic: %s\n", ptStbpMsg->topic);
 
     /* 发送到框架消息队列 */
-    module_v2_send_message(
-        module,
-        0,  /* 广播 */
+    MODULE_SEND_MSG(module,
         ptStbpMsg->topic,
-        NULL,
-        0,
-        ptStbpMsg->payloadSize,
         ptStbpMsg->pPayload,
-        0,  /* 浅拷贝 */
-        OSAL_TIMEOUT_NONE
-    );
+        ptStbpMsg->payloadSize);
 
     StbpClientFreeMsg(ptPrivate->hUser, ptStbpMsg);
 }
@@ -205,7 +198,7 @@ void UserAgentDestroy(ModuleHandleV2 module)
     }
 
     free(ptPrivate);
-    module->private_data = NULL;
+    MODULE_SET_PRIVATE(module, NULL);
 
     dbprintf("[UserAgent] Deleted (V2).\n");
 }

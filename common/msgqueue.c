@@ -123,12 +123,11 @@ E_StateCode msg_queue_release_msg(MsgQueueHandle* handle, T_Msg* msg)
     return CommQue_PutEmpty(handle->que_id, msg);
 }
 
-E_StateCode msg_queue_get_pending_count(MsgQueueHandle* handle)
+uint32_t msg_queue_get_pending_count(MsgQueueHandle* handle)
 {
     if (handle == NULL || handle->que_id == NULL)
     {
         return 0;
     }
-    // CommQue_GetFullCount 可以获取队列中“满”消息的数量
     return CommQue_GetFullCount(handle->que_id);
 }

@@ -1,24 +1,13 @@
 /**
- * File:   ring_buffer.h
- * Author: AWTK Develop Team
- * Brief:  ring_buffer (底层环形缓冲区，线程安全版本)
+ * @file ring_buffer.h
+ * @brief 底层环形缓冲区 -- 线程安全版本，支持超时读写
  *
- * Copyright (c) 2018 - 2025 Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * @details
+ * 基于 AWTK ring_buffer 改造，添加 pthread 互斥锁 + 条件变量实现线程安全。
+ * 支持超时读写、peek（不消费读取）、定长读写等高级操作。
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * License file for more details.
- *
- */
-
-/**
- * History:
- * ================================================================
- * 2019-10-06 Li XianJing <xianjimli@hotmail.com> created
- * 2025-12-05 作为ring_queue的底层实现
- * 2025-12-05 添加线程安全机制和超时支持 (版本3)
- *
+ * @see defs.h（依赖 UINT32, UINT8, BOOL, E_StateCode）
+ * @see ring_queue.h（被依赖）
  */
 
 #ifndef TK_RING_BUFFER_H

@@ -125,7 +125,9 @@ static void log_cleanup_old_files() {
 
 // 设置日志级别
 void log_set_level(LogLevel level) {
+    pthread_mutex_lock(&log_mutex);
     current_level = level;
+    pthread_mutex_unlock(&log_mutex);
 }
 
 // 初始化日志系统
@@ -208,9 +210,11 @@ int log_init() {
 void log_write(LogLevel level, const char* file, const char* func, int line, const char *format, ...) {
     (void)file;
     (void)func;
-    if (level < current_level) return;
-        
     pthread_mutex_lock(&log_mutex);
+    if (level < current_level) {
+        pthread_mutex_unlock(&log_mutex);
+        return;
+    }
 
     // 获取当前时间
     // time_t now = time(NULL);
@@ -270,8 +274,10 @@ void log_write(LogLevel level, const char* file, const char* func, int line, con
 int log_register_debug_trace(LJDebugtraceCb  trace_log, void *arg)
 {
     if (trace_log) {
+        pthread_mutex_lock(&log_mutex);
         tracecb = trace_log;
         traceCbarg = arg;
+        pthread_mutex_unlock(&log_mutex);
         syslog("Debug trace handler registered\n");
         return 0;
     }
@@ -280,6 +286,8 @@ int log_register_debug_trace(LJDebugtraceCb  trace_log, void *arg)
 
 void log_unregister_debug_trace(void)
 {
+    pthread_mutex_lock(&log_mutex);
     tracecb = NULL;
     traceCbarg = NULL;
+    pthread_mutex_unlock(&log_mutex);
 }

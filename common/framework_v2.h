@@ -32,6 +32,29 @@ typedef struct framework_context_v2* FrameworkHandleV2;
 typedef struct module_v2* ModuleHandleV2;
 
 /**
+ * @brief V2 模块结构（公开部分字段供宏访问）
+ * @note 完整定义在 framework_v2.c 中
+ */
+struct module_v2 {
+    uint32_t id;
+    void *private_data;
+    struct framework_context_v2 *framework;
+    /* 其余字段为内部实现，不公开 */
+};
+
+/**
+ * @brief V2 框架上下文结构（公开部分字段供宏访问）
+ * @note 完整定义在 framework_v2.c 中
+ */
+struct framework_context_v2 {
+    struct module_v2 *modules;
+    uint32_t module_count;
+    void *msg_queue;
+    volatile bool is_running;
+    uint32_t next_module_id;
+};
+
+/**
  * @brief 创建 V2 框架
  * @param max_msg_count 消息队列最大容量
  * @return 框架句柄，失败返回 NULL
@@ -182,6 +205,58 @@ bool framework_v2_start_main_loop(FrameworkHandleV2 handle, uint32_t interval_ms
  * @param handle 框架句柄
  */
 void framework_v2_stop_main_loop(FrameworkHandleV2 handle);
+
+/***********************************************************
+*                    模块操作宏                            *
+**********************************************************/
+
+/**
+ * @brief 获取模块私有数据
+ * @param module 模块句柄
+ * @return 私有数据指针
+ */
+#define MODULE_GET_PRIVATE(module) \
+    ((module) ? ((struct module_v2*)(module))->private_data : NULL)
+
+/**
+ * @brief 设置模块私有数据
+ * @param module 模块句柄
+ * @param data   私有数据指针
+ */
+#define MODULE_SET_PRIVATE(module, data) \
+    do { if (module) ((struct module_v2*)(module))->private_data = (data); } while(0)
+
+/**
+ * @brief 获取模块ID
+ * @param module 模块句柄
+ * @return 模块ID
+ */
+#define MODULE_GET_ID(module) \
+    ((module) ? ((struct module_v2*)(module))->id : 0)
+
+/**
+ * @brief 获取框架句柄
+ * @param module 模块句柄
+ * @return 框架句柄
+ */
+#define MODULE_GET_FRAMEWORK(module) \
+    ((module) ? ((struct module_v2*)(module))->framework : NULL)
+
+/**
+ * @brief 检查框架是否运行中
+ * @param fw 框架句柄
+ * @return true/false
+ */
+#define FRAMEWORK_IS_RUNNING(fw) \
+    ((fw) ? ((struct framework_context_v2*)(fw))->is_running : false)
+
+/**
+ * @brief 获取模块数量
+ * @param fw 框架句柄
+ * @return 模块数量
+ */
+#define FRAMEWORK_GET_MODULE_COUNT(fw) \
+    ((fw) ? ((struct framework_context_v2*)(fw))->module_count : 0)
 
 #ifdef __cplusplus
 }

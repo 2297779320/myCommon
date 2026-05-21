@@ -154,14 +154,16 @@ static void destroy_sync_primitives(SMQ_ControlBlock* pCtrlBlock) {
  */
 HANDLE ShareMemQue_Create(UINT32 uiFrameCount, UINT32 uiFrameSize, const char* strId) {
     SMQ_Attributes attr;
-    attr.strId = strId;
-    attr.elementSize = (size_t)uiFrameSize;
-    attr.maxElements = (size_t)uiFrameCount;
-    attr.isCreate = true; // 默认创建新队列，可以根据需要修改为打开现有队列
+
     if (!strId || uiFrameSize == 0 || uiFrameCount == 0) {
         syslog("Invalid parameters for ShareMemQue_Create");
         return NULL;
     }
+
+    attr.strId = strId;
+    attr.elementSize = (size_t)uiFrameSize;
+    attr.maxElements = (size_t)uiFrameCount;
+    attr.isCreate = true; /* 先尝试创建，若已存在则打开 */
     
     SMQ_InternalHandle* pHandle = (SMQ_InternalHandle*)malloc(sizeof(SMQ_InternalHandle));
     if (!pHandle) {
@@ -233,7 +235,6 @@ HANDLE ShareMemQue_Create(UINT32 uiFrameCount, UINT32 uiFrameSize, const char* s
             syslog("Failed to initialize synchronization primitives");
             shmdt(pHandle->shmAddr);
             shmctl(pHandle->shmFd, IPC_RMID, NULL);
-            close(pHandle->shmFd);
             free(pHandle);
             return NULL;
         }
@@ -248,7 +249,6 @@ HANDLE ShareMemQue_Create(UINT32 uiFrameCount, UINT32 uiFrameSize, const char* s
             pHandle->pCtrlBlock->maxElements != attr.maxElements) {
             syslog("Shared memory queue validation failed - incompatible parameters");
             shmdt(pHandle->shmAddr);
-            close(pHandle->shmFd);
             free(pHandle);
             return NULL;
         }
@@ -258,7 +258,6 @@ HANDLE ShareMemQue_Create(UINT32 uiFrameCount, UINT32 uiFrameSize, const char* s
         if (initResult != STATE_CODE_NO_ERROR) {
             syslog("Failed to initialize synchronization primitives for existing queue");
             shmdt(pHandle->shmAddr);
-            close(pHandle->shmFd);
             free(pHandle);
             return NULL;
         }
@@ -280,7 +279,14 @@ E_StateCode ShareMemQue_Delete(HANDLE handle) {
     
     SMQ_InternalHandle* pHandle = (SMQ_InternalHandle*)handle;
     E_StateCode result = STATE_CODE_NO_ERROR;
-    
+
+    /* 保存队列ID，因为 shmdt 后 pCtrlBlock 将不可访问 */
+    char saved_id[64] = "unknown";
+    if (pHandle->pCtrlBlock) {
+        strncpy(saved_id, pHandle->pCtrlBlock->strId, sizeof(saved_id) - 1);
+        saved_id[sizeof(saved_id) - 1] = '\0';
+    }
+
     if (pHandle->pCtrlBlock) {
         // 标记队列无效
         pthread_mutex_lock(&pHandle->pCtrlBlock->mutex);
@@ -310,86 +316,10 @@ E_StateCode ShareMemQue_Delete(HANDLE handle) {
         /* shmFd 是 shmid，不是文件描述符，不需要 close() */
     }
     
-    syslog("Deleted shared memory queue: %s", pHandle->pCtrlBlock ? pHandle->pCtrlBlock->strId : "unknown");
+    syslog("Deleted shared memory queue: %s", saved_id);
     
     free(pHandle);
     return result;
-}
-
-/**
- * 通过ID获取共享内存队列句柄
- */
-HANDLE ShareMemQue_GetID(const char* strId) {
-    if (!strId) {
-        syslog("Invalid strId for ShareMemQue_GetID");
-        return NULL;
-    }
-    
-    key_t shmKey = generate_key(strId);
-    if (shmKey == -1) {
-        syslog("Failed to generate shared memory key");
-        return NULL;
-    }
-    
-    /* 以只读方式探测并获取已有共享内存的元信息 */
-    int shmFd = shmget(shmKey, 0, 0666);
-    if (shmFd == -1) {
-        syslog("Shared memory queue not found: %s", strId);
-        return NULL;
-    }
-    
-    void* shmAddr = shmat(shmFd, NULL, SHM_RDONLY);
-    if (shmAddr == (void*)-1) {
-        syslog("Failed to attach shared memory for info: %s", strerror(errno));
-        return NULL;
-    }
-    
-    SMQ_ControlBlock* pCtrlBlock = (SMQ_ControlBlock*)shmAddr;
-    size_t elementSize = pCtrlBlock->elementSize;
-    size_t maxElements = pCtrlBlock->maxElements;
-    shmdt(shmAddr);
-    
-    /* 直接以打开者身份附加，不创建新共享内存 */
-    SMQ_InternalHandle* pHandle = (SMQ_InternalHandle*)malloc(sizeof(SMQ_InternalHandle));
-    if (!pHandle) {
-        syslog("Memory allocation failed for internal handle");
-        return NULL;
-    }
-    memset(pHandle, 0, sizeof(SMQ_InternalHandle));
-    
-    pHandle->shmSize = calculate_shm_size(elementSize, maxElements);
-    pHandle->isCreator = false;
-    pHandle->shmFd = shmFd;
-    
-    pHandle->shmAddr = shmat(shmFd, NULL, 0);
-    if (pHandle->shmAddr == (void*)-1) {
-        syslog("Failed to attach shared memory: %s", strerror(errno));
-        free(pHandle);
-        return NULL;
-    }
-    
-    pHandle->pCtrlBlock = (SMQ_ControlBlock*)pHandle->shmAddr;
-    
-    if (!pHandle->pCtrlBlock->isValid ||
-        strcmp(pHandle->pCtrlBlock->strId, strId) != 0 ||
-        pHandle->pCtrlBlock->elementSize != elementSize ||
-        pHandle->pCtrlBlock->maxElements != maxElements) {
-        syslog("Shared memory queue validation failed");
-        shmdt(pHandle->shmAddr);
-        free(pHandle);
-        return NULL;
-    }
-    
-    E_StateCode initResult = init_sync_primitives(pHandle->pCtrlBlock, false);
-    if (initResult != STATE_CODE_NO_ERROR) {
-        syslog("Failed to initialize synchronization primitives for existing queue");
-        shmdt(pHandle->shmAddr);
-        free(pHandle);
-        return NULL;
-    }
-    
-    syslog("Opened existing shared memory queue: %s", strId);
-    return (HANDLE)pHandle;
 }
 
 /**
@@ -415,24 +345,25 @@ void* ShareMemQue_GetWritePtr(HANDLE handle) {
         return NULL;
     }
     
-    /* 加锁读取写索引后立即解锁，返回写入位置供调用方填充 */
+    /* 加锁读取写索引，缓存后解锁 */
     if (pthread_mutex_lock(&pCtrlBlock->mutex) != 0) {
         syslog("Failed to lock mutex for write operation");
         sem_post(&pCtrlBlock->notFull);
         return NULL;
     }
-    size_t writePos = pCtrlBlock->writeIndex * pCtrlBlock->elementSize;
+    size_t writeIdx = pCtrlBlock->writeIndex;
+    size_t writePos = writeIdx * pCtrlBlock->elementSize;
     void* pWritePtr = (void*)(pCtrlBlock->data + writePos);
     pthread_mutex_unlock(&pCtrlBlock->mutex);
 
-    syslog("Got write pointer at element %zu", pCtrlBlock->writeIndex);
+    syslog("Got write pointer at element %zu", writeIdx);
     return pWritePtr;
 }
 
 /**
  * 提交写入（元素入队）
  */
-E_StateCode ShareMemQue_PutWritePtr(HANDLE handle) {
+E_StateCode ShareMemQue_PutWritePtr(HANDLE handle, void* pData) {
     if (!handle) {
         syslog("Invalid handle for ShareMemQue_PutWritePtr");
         return STATE_CODE_INVALID_PARAM;
@@ -445,6 +376,16 @@ E_StateCode ShareMemQue_PutWritePtr(HANDLE handle) {
     }
     
     SMQ_ControlBlock* pCtrlBlock = pHandle->pCtrlBlock;
+
+    /* 验证传入的指针是否为当前应写入的位置 */
+    if (pData) {
+        size_t expectedPos = pCtrlBlock->writeIndex * pCtrlBlock->elementSize;
+        void* expectedPtr = (void*)(pCtrlBlock->data + expectedPos);
+        if (pData != expectedPtr) {
+            syslog("PutWritePtr: pointer mismatch, expected %p got %p", expectedPtr, pData);
+            return STATE_CODE_INVALID_PARAM;
+        }
+    }
     
     if (pthread_mutex_lock(&pCtrlBlock->mutex) != 0) {
         syslog("Failed to lock mutex for PutWritePtr");
@@ -485,24 +426,25 @@ void* ShareMemQue_GetReadPtr(HANDLE handle) {
         return NULL;
     }
     
-    /* 加锁读取读索引后立即解锁，返回读取位置供调用方消费 */
+    /* 加锁读取读索引，缓存后解锁 */
     if (pthread_mutex_lock(&pCtrlBlock->mutex) != 0) {
         syslog("Failed to lock mutex for read operation");
         sem_post(&pCtrlBlock->notEmpty);
         return NULL;
     }
-    size_t readPos = pCtrlBlock->readIndex * pCtrlBlock->elementSize;
+    size_t readIdx = pCtrlBlock->readIndex;
+    size_t readPos = readIdx * pCtrlBlock->elementSize;
     void* pReadPtr = (void*)(pCtrlBlock->data + readPos);
     pthread_mutex_unlock(&pCtrlBlock->mutex);
 
-    syslog("Got read pointer at element %zu", pCtrlBlock->readIndex);
+    syslog("Got read pointer at element %zu", readIdx);
     return pReadPtr;
 }
 
 /**
  * 提交读取（元素出队）
  */
-E_StateCode ShareMemQue_PutReadPtr(HANDLE handle) {
+E_StateCode ShareMemQue_PutReadPtr(HANDLE handle, void* pData) {
     if (!handle) {
         syslog("Invalid handle for ShareMemQue_PutReadPtr");
         return STATE_CODE_INVALID_PARAM;
@@ -515,6 +457,16 @@ E_StateCode ShareMemQue_PutReadPtr(HANDLE handle) {
     }
     
     SMQ_ControlBlock* pCtrlBlock = pHandle->pCtrlBlock;
+
+    /* 验证传入的指针是否为当前应读取的位置 */
+    if (pData) {
+        size_t expectedPos = pCtrlBlock->readIndex * pCtrlBlock->elementSize;
+        void* expectedPtr = (void*)(pCtrlBlock->data + expectedPos);
+        if (pData != expectedPtr) {
+            syslog("PutReadPtr: pointer mismatch, expected %p got %p", expectedPtr, pData);
+            return STATE_CODE_INVALID_PARAM;
+        }
+    }
     
     if (pthread_mutex_lock(&pCtrlBlock->mutex) != 0) {
         syslog("Failed to lock mutex for PutReadPtr");

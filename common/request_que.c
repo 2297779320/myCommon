@@ -28,6 +28,7 @@ static AsyncRequest *create_request(void *data,
 
     req->is_waiting = false;
     req->is_sync = is_sync;
+    req->bNeedFree = false;
 
     if (pthread_mutex_init(&req->req_mutex, NULL) != 0)
     {
@@ -411,6 +412,9 @@ void async_request_cleanup_completed(AsyncRequestQueue *queue)
         return;
     int64_t current_time = OSAL_GetCpuStartInMsec();
     AsyncRequest *req, *tmp;
+
+    /* 第一轮: 在 table_mutex 保护下收集需要处理的请求，
+       释放 table_mutex 后再逐个处理，避免 ABBA 死锁 */
     pthread_mutex_lock(&queue->table_mutex);
     HASH_ITER(hh, queue->request_table, req, tmp)
     {
@@ -421,11 +425,13 @@ void async_request_cleanup_completed(AsyncRequestQueue *queue)
             continue;
         }
 
-        pthread_mutex_lock(&req->req_mutex);
+        /* 仅检查是否超时，不嵌套锁 */
         if (req->status == REQUEST_STATUS_PENDING && req->timeout_ms > 0)
         {
             if (current_time - req->submit_time >= req->timeout_ms)
             {
+                /* 标记超时，单独处理 */
+                pthread_mutex_lock(&req->req_mutex);
                 req->status = REQUEST_STATUS_TIMEOUT;
                 if (req->is_waiting)
                 {
@@ -433,18 +439,54 @@ void async_request_cleanup_completed(AsyncRequestQueue *queue)
                 }
                 req->bNeedFree = true;
                 pthread_mutex_unlock(&req->req_mutex);
-                
-            }
-            else
-            {
-                pthread_mutex_unlock(&req->req_mutex);
             }
         }
-        else
-        {
-            pthread_mutex_unlock(&req->req_mutex);
-        }
-
     }
     pthread_mutex_unlock(&queue->table_mutex);
+}
+
+// 提交同步请求（阻塞等待完成）
+request_id_t async_request_submit_sync(AsyncRequestQueue *queue,
+                                       void *data,
+                                       void *context,
+                                       int64_t timeout_ms,
+                                       RequestStatus *out_status)
+{
+    if (!queue || queue->is_destroyed)
+        return 0;
+
+    // 生成请求ID
+    pthread_mutex_lock(&queue->id_mutex);
+    request_id_t req_id = queue->next_id++;
+    if (queue->next_id == 0)
+        queue->next_id = 1;
+    pthread_mutex_unlock(&queue->id_mutex);
+
+    // 创建同步请求
+    AsyncRequest *req = create_request(data, context,
+                                       NULL, timeout_ms, req_id, true);
+    if (!req)
+        return 0;
+
+    // 插入哈希表
+    pthread_mutex_lock(&queue->table_mutex);
+    HASH_ADD(hh, queue->request_table, id, sizeof(request_id_t), req);
+    pthread_mutex_unlock(&queue->table_mutex);
+
+    // 入队
+    if (queue_enqueue(queue->pending_queue, req, sizeof(req)) != 0) {
+        pthread_mutex_lock(&queue->table_mutex);
+        HASH_DEL(queue->request_table, req);
+        pthread_mutex_unlock(&queue->table_mutex);
+        destroy_request(req);
+        return 0;
+    }
+
+    // 阻塞等待完成
+    int ret = async_request_wait(queue, req_id, timeout_ms);
+    if (out_status) {
+        *out_status = async_request_get_status(queue, req_id);
+    }
+
+    return (ret == 0) ? req_id : 0;
 }

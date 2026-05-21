@@ -227,6 +227,11 @@ static E_StateCode ConfigUart(int fd, int baudrate, int wordWidth, int stopBits,
 E_StateCode init_uart(uart_param_t* param)
 {
     E_StateCode eCode = STATE_CODE_NO_ERROR;
+    if (!param || !param->read_cb)
+    {
+        return STATE_CODE_INVALID_PARAM;
+    }
+
     if (param->port == UART_USB0)
     {
         param->fd = uart_open("/dev/ttyUSB0");
@@ -242,6 +247,8 @@ E_StateCode init_uart(uart_param_t* param)
         if (fcntl(param->fd, F_SETFL, 0) < 0)
         {
             printf("fcntl failed!\n");
+            close(param->fd);
+            param->fd = -1;
             return STATE_CODE_OBJECT_BUSY;
         }
 
@@ -249,7 +256,18 @@ E_StateCode init_uart(uart_param_t* param)
         if (!STATE_OK(eCode))
         {
             LOG_WARN("uart_set_speed failed\n");
+            close(param->fd);
+            param->fd = -1;
             return STATE_CODE_CONFIG_ERROR;
+        }
+    }
+    else
+    {
+        /* 非 UART_USB0 端口：必须由调用方预先设置 param->fd */
+        if (param->fd <= 0)
+        {
+            LOG_ERR("init_uart: non-USB port requires valid fd\n");
+            return STATE_CODE_INVALID_PARAM;
         }
     }
     OSAL_MutexInit(&param->tMutex);

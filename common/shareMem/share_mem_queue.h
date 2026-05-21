@@ -1,3 +1,14 @@
+/**
+ * @file share_mem_queue.h
+ * @brief 共享内存队列 -- 跨进程的生产者/消费者队列
+ *
+ * @details
+ * 基于 System V 共享内存（shmget/shmat）实现的跨进程队列。
+ * 通过字符串 ID 标识队列，支持多个进程同时读写。
+ *
+ * @see defs.h（依赖 HANDLE, E_StateCode, UINT32）
+ */
+
 #ifndef SHARE_MEM_QUEUE_H
 #define SHARE_MEM_QUEUE_H
 
@@ -25,14 +36,6 @@ HANDLE ShareMemQue_Create(UINT32 uiFrameCount, UINT32 uiFrameSize, const char* s
 E_StateCode ShareMemQue_Delete(HANDLE handle);
 
 /**
- * 通过ID获取共享内存队列句柄
- * 
- * @param strId 队列唯一标识符
- * @return 成功返回队列句柄，失败返回NULL
- */
-HANDLE ShareMemQue_GetID(const char* strId);
-
-/**
  * 获取写入指针
  * 
  * @param handle 队列句柄
@@ -44,9 +47,10 @@ void* ShareMemQue_GetWritePtr(HANDLE handle);
  * 提交写入指针(元素入队)
  * 
  * @param handle 队列句柄
+ * @param pData 之前 GetWritePtr 返回的指针，用于验证
  * @return 成功返回SMQ_SUCCESS，失败返回错误码
  */
-E_StateCode ShareMemQue_PutWritePtr(HANDLE handle);
+E_StateCode ShareMemQue_PutWritePtr(HANDLE handle, void* pData);
 
 /**
  * 获取读取指针
@@ -60,9 +64,10 @@ void* ShareMemQue_GetReadPtr(HANDLE handle);
  * 提交读取指针(元素出队)
  * 
  * @param handle 队列句柄
+ * @param pData 之前 GetReadPtr 返回的指针，用于验证
  * @return 成功返回SMQ_SUCCESS，失败返回错误码
  */
-E_StateCode ShareMemQue_PutReadPtr(HANDLE handle);
+E_StateCode ShareMemQue_PutReadPtr(HANDLE handle, void* pData);
 
 /**
  * 获取队列当前元素数量

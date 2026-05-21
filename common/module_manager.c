@@ -3,8 +3,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <assert.h>
-#include "msgqueue.h"
-#include "common/common.h"
+#include "comm_que.h"
+#include "common.h"
 
 // 获取当前时间戳
 static uint32_t get_current_timestamp()
@@ -88,7 +88,7 @@ void process_framework_message_queue(struct framework_context *context)
     // 循环处理所有可用消息，超时设为0表示不阻塞
     while (context->is_running)
     {
-        T_ModuleMsg *msg = msg_queue_receive((MsgQueueHandle *)context->msg_queue, 0);
+        T_ModuleMsg *msg = (T_ModuleMsg *)CommQue_GetFull((CommQueID)context->msg_queue, OSAL_TIMEOUT_NONE);
         if (!msg)
         {
             break; // 没有更多消息或接收失败
@@ -131,7 +131,7 @@ void process_framework_message_queue(struct framework_context *context)
         }
 
         // 释放消息
-        msg_queue_release_msg((MsgQueueHandle *)context->msg_queue, msg);
+        CommQue_PutEmpty((CommQueID)context->msg_queue, msg);
     }
 }
 
@@ -150,7 +150,7 @@ FrameworkHandle framework_create(uint32_t max_msg_count)
     context->is_running = false;
     context->next_module_id = 1; // 从1开始，0保留给广播
 
-    context->msg_queue = msg_queue_create(max_msg_count);
+    context->msg_queue = (void *)CommQue_Create(max_msg_count, sizeof(T_ModuleMsg), NULL);
     if (!context->msg_queue)
     {
         free(context);
@@ -196,7 +196,7 @@ void framework_destroy(FrameworkHandle handle)
     // 销毁消息队列
     if (context->msg_queue)
     {
-        msg_queue_destroy((MsgQueueHandle *)context->msg_queue);
+        CommQue_Delete((CommQueID)context->msg_queue);
     }
 
     free(context);
@@ -391,25 +391,25 @@ E_StateCode framework_send_message(FrameworkHandle handle,
         msg.data = (void *)data;
     }
 
-    // 发送消息
-    E_StateCode result = msg_queue_send((MsgQueueHandle *)context->msg_queue, &msg, timeout);
-
-    if (result == STATE_CODE_NO_ERROR)
-    {
-        syslog("消息发送成功: 发送者 %u -> 接收者 %u, 类型 %u, 拷贝类型: %s\n",
-               sender, receiver, type, copy_type == MSG_COPY_DEEP ? "深拷贝" : "浅拷贝");
-    }
-    else
+    // 发送消息：获取空槽 → 复制消息 → 提交到满队列
+    T_ModuleMsg *pSlot = (T_ModuleMsg *)CommQue_GetEmpty((CommQueID)context->msg_queue, timeout);
+    if (!pSlot)
     {
         // 如果发送失败且是深拷贝，需要释放分配的内存
         if (copy_type == MSG_COPY_DEEP && msg.data)
         {
             free(msg.data);
         }
-        syslog("消息发送失败: 错误码 %d, 发送者 %u -> 接收者 %u\n", result, sender, receiver);
+        syslog("消息发送失败: 获取空槽超时, 发送者 %u -> 接收者 %u\n", sender, receiver);
+        return STATE_CODE_TIMEOUT;
     }
 
-    return result;
+    *pSlot = msg;
+    CommQue_PutFull((CommQueID)context->msg_queue, pSlot);
+
+    syslog("消息发送成功: 发送者 %u -> 接收者 %u, 类型 %u, 拷贝类型: %s\n",
+           sender, receiver, type, copy_type == MSG_COPY_DEEP ? "深拷贝" : "浅拷贝");
+    return STATE_CODE_NO_ERROR;
 }
 
 E_StateCode module_send_message(ModuleHandle module,

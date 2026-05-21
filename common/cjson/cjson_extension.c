@@ -12,38 +12,7 @@ static E_StateCode cjson_parse_json_to_struct_internal(cJSON *json_item,
 static cJSON *encode_struct_to_json_internal(const void *struct_ptr,
                                              const CJsonStructFieldDef *fields);
 
-static E_StateCode parse_json_field2(cJSON *json_item, void *field_ptr,
-                                    CJsonFieldType element_type)
-{
-
-    E_StateCode eCode = STATE_CODE_NO_ERROR;
-    if (!json_item || !field_ptr)
-        return STATE_CODE_INVALID_PARAM;
-
-    switch (element_type)
-    {
-    case CJSON_TYPE_INT:
-        *(int *)field_ptr = json_item->valueint;
-        break;
-    case CJSON_TYPE_UINT:
-        *(unsigned int *)field_ptr = (unsigned int)json_item->valuedouble;
-        break;
-    case CJSON_TYPE_FLOAT:
-        *(float *)field_ptr = (float)json_item->valuedouble;
-        break;
-    case CJSON_TYPE_DOUBLE:
-        *(double *)field_ptr = json_item->valuedouble;
-        break;
-    case CJSON_TYPE_BOOL:
-        *(int *)field_ptr = cJSON_IsTrue(json_item);
-        break;
-    default:
-        return STATE_CODE_INVALID_PARAM;
-    }
-    return eCode;
-}
-
-static E_StateCode parse_json_field(cJSON *json_item, void *field_ptr,  
+static E_StateCode parse_json_field(cJSON *json_item, void *field_ptr,
                                     const CJsonStructFieldDef *field_def)
 {
 
@@ -123,10 +92,26 @@ static E_StateCode parse_json_field(cJSON *json_item, void *field_ptr,
             }
             else
             {
-                eCode = parse_json_field2(array_item, element_ptr, field_def->element_type);
-                if (!STATE_OK(eCode))
+                switch (field_def->element_type)
                 {
-                    syserr("parse_json_field failed, %s.\n", array_item->valuestring);
+                case CJSON_TYPE_INT:
+                    *(int *)element_ptr = array_item->valueint;
+                    break;
+                case CJSON_TYPE_UINT:
+                    *(unsigned int *)element_ptr = (unsigned int)array_item->valuedouble;
+                    break;
+                case CJSON_TYPE_FLOAT:
+                    *(float *)element_ptr = (float)array_item->valuedouble;
+                    break;
+                case CJSON_TYPE_DOUBLE:
+                    *(double *)element_ptr = array_item->valuedouble;
+                    break;
+                case CJSON_TYPE_BOOL:
+                    *(int *)element_ptr = cJSON_IsTrue(array_item);
+                    break;
+                default:
+                    eCode = STATE_CODE_INVALID_PARAM;
+                    break;
                 }
             }
             array_item = array_item->next;
@@ -140,45 +125,6 @@ static E_StateCode parse_json_field(cJSON *json_item, void *field_ptr,
     return eCode;
 }
 
-static cJSON *encode_field_to_json2(const void *struct_ptr,
-                                   CJsonFieldType type)
-{
-    if (!struct_ptr)
-        return NULL;
-
-    void *field_ptr = (char *)struct_ptr;
-    cJSON *json_item = NULL;
-
-    switch (type)
-    {
-    case CJSON_TYPE_INT:
-        json_item = cJSON_CreateNumber(*(int *)field_ptr);
-        break;
-    case CJSON_TYPE_UINT:
-        json_item = cJSON_CreateNumber(*(unsigned int *)field_ptr);
-        break;
-    case CJSON_TYPE_FLOAT:
-        json_item = cJSON_CreateNumber(*(float *)field_ptr);
-        break;
-    case CJSON_TYPE_DOUBLE:
-        json_item = cJSON_CreateNumber(*(double *)field_ptr);
-        break;
-    case CJSON_TYPE_STRING:
-    {
-        char *str = (char *)field_ptr;
-        json_item = cJSON_CreateString(str);
-        break;
-    }
-    case CJSON_TYPE_BOOL:
-        json_item = cJSON_CreateBool(*(int *)field_ptr);
-        break;
-    default:
-        return NULL;
-    }
-    return json_item;
-}
-
-/* 注意: 调用方传入的 struct_ptr 已是字段地址 (struct_base + field->offset)，不要再次加 offset */
 static cJSON *encode_field_to_json(const void *struct_ptr,
                                    const CJsonStructFieldDef *field_def)
 {
@@ -239,7 +185,29 @@ static cJSON *encode_field_to_json(const void *struct_ptr,
             }
             else
             {
-                element_json = encode_field_to_json2(element_ptr, field_def->element_type);
+                switch (field_def->element_type)
+                {
+                case CJSON_TYPE_INT:
+                    element_json = cJSON_CreateNumber(*(int *)element_ptr);
+                    break;
+                case CJSON_TYPE_UINT:
+                    element_json = cJSON_CreateNumber(*(unsigned int *)element_ptr);
+                    break;
+                case CJSON_TYPE_FLOAT:
+                    element_json = cJSON_CreateNumber(*(float *)element_ptr);
+                    break;
+                case CJSON_TYPE_DOUBLE:
+                    element_json = cJSON_CreateNumber(*(double *)element_ptr);
+                    break;
+                case CJSON_TYPE_STRING:
+                    element_json = cJSON_CreateString((char *)element_ptr);
+                    break;
+                case CJSON_TYPE_BOOL:
+                    element_json = cJSON_CreateBool(*(int *)element_ptr);
+                    break;
+                default:
+                    break;
+                }
             }
             if (element_json)
             {
@@ -303,17 +271,6 @@ static cJSON *encode_struct_to_json_internal(const void *struct_ptr,
 
     return root;
 }
-static char *cjson_encode_struct_to_json_internal(const void *struct_ptr,
-                                                  const CJsonStructFieldDef *fields)
-{
-    cJSON *root = encode_struct_to_json_internal(struct_ptr, fields);
-    if (!root)
-        return NULL;
-
-    char *result = cJSON_Print(root);
-    cJSON_Delete(root);
-    return result;
-}
 void* cjson_parse_json_to_struct(const char *json_str,
                                  const CJsonStructFieldDef *fields,
                                  size_t struct_size)
@@ -347,5 +304,11 @@ end:
 char *cjson_encode_struct_to_json(const void *struct_ptr,
                                   const CJsonStructFieldDef *fields)
 {
-    return cjson_encode_struct_to_json_internal(struct_ptr, fields);
+    cJSON *root = encode_struct_to_json_internal(struct_ptr, fields);
+    if (!root)
+        return NULL;
+
+    char *result = cJSON_Print(root);
+    cJSON_Delete(root);
+    return result;
 }

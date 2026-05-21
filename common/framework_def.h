@@ -1,3 +1,15 @@
+/**
+ * @file framework_def.h
+ * @brief 模块化框架定义 -- 消息驱动的模块注册与生命周期管理
+ *
+ * @details
+ * 定义框架核心类型（消息、模块ID、拷贝方式）和 API 原型。
+ * 模块通过 init/run/destroy 生命周期函数注册到框架，通过消息进行通信。
+ *
+ * @see defs.h（依赖 E_StateCode）
+ * @see module_manager.h（被依赖）
+ */
+
 #ifndef FRAMEWORK_DEF_H
 #define FRAMEWORK_DEF_H
 

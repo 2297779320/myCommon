@@ -86,8 +86,7 @@ static E_StateCode DeviceCtrlOnHandler(
         static char response[128];
         snprintf(response, sizeof(response), 
                  "{\"result\":\"success\",\"devId\":%d,\"action\":\"on\"}", iDevId);
-        *ppcResData = response;
-        *puiDataSize = strlen(response);
+        SET_RESPONSE_DATA(ppcResData, puiDataSize, response);
     }
 
     return STATE_CODE_NO_ERROR;
@@ -142,8 +141,7 @@ static E_StateCode DeviceCtrlOffHandler(
         static char response[128];
         snprintf(response, sizeof(response),
                  "{\"result\":\"success\",\"devId\":%d,\"action\":\"off\"}", iDevId);
-        *ppcResData = response;
-        *puiDataSize = strlen(response);
+        SET_RESPONSE_DATA(ppcResData, puiDataSize, response);
     }
 
     return STATE_CODE_NO_ERROR;
@@ -154,9 +152,9 @@ static E_StateCode DeviceCtrlOffHandler(
  */
 static T_MsgProcEntryV2 g_satDeviceCtrlTable[] =
 {
-    {"$request.set.*.*.*.sample.v1.devCtrl.on",  DeviceCtrlOnHandler,  NULL, true, true},
-    {"$request.set.*.*.*.sample.v1.devCtrl.off", DeviceCtrlOffHandler, NULL, true, true},
-    {NULL, NULL, NULL, false, false}  /* 结束标记 */
+    MSG_HANDLER_TOPIC("$request.set.*.*.*.sample.v1.devCtrl.on",  DeviceCtrlOnHandler),
+    MSG_HANDLER_TOPIC("$request.set.*.*.*.sample.v1.devCtrl.off", DeviceCtrlOffHandler),
+    MSG_TABLE_END
 };
 
 /* 导出消息表和长度 */
@@ -167,7 +165,7 @@ const T_MsgProcEntryV2* GetDeviceCtrlMsgTable(void)
 
 uint32_t GetDeviceCtrlMsgTableLen(void)
 {
-    return 2;  /* 2个处理器 */
+    return MSG_TABLE_LEN(g_satDeviceCtrlTable);
 }
 
 /***********************************************************

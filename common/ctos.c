@@ -31,6 +31,7 @@ typedef struct
 	void *Memory_p;
 	BOOL *Used_p;
 	os_MsgSend_t *Pending_p;
+	os_MsgSend_t *PendingTail_p;
 	size_t ElementSize;
 	unsigned int NoElements;
 } os_MsgElem_t;
@@ -43,27 +44,30 @@ typedef struct os_MsgQueueList_s
 } os_MsgQueueList_t;
 
 static os_MsgElem_t MessageArray[QUEUE_NB_MAX];
-static BOOL MessageInitDone = FALSE;
-
 static os_MsgQueueList_t *MessageQueueList_p = NULL;
+static os_MsgQueueList_t *MessageQueueListTail_p = NULL;
 
 static pthread_mutex_t message_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_once_t message_init_once = PTHREAD_ONCE_INIT;
 
-static void Init_Msg_Queues(void)
+static void Init_Msg_Queues_Impl(void)
 {
 	os_MsgElem_t *Elem_p;
 	int Index;
 
-	if (MessageInitDone == FALSE) {
-		MessageInitDone = TRUE;
-		for (Index=0,Elem_p=MessageArray;Index<QUEUE_NB_MAX;Index++,Elem_p++) {
-			Elem_p->Memory_p = NULL;
-			Elem_p->Used_p = NULL;
-			Elem_p->Pending_p = NULL;
-			Elem_p->ElementSize = 0;
-			Elem_p->NoElements = 0;
-		}
+	for (Index=0,Elem_p=MessageArray;Index<QUEUE_NB_MAX;Index++,Elem_p++) {
+		Elem_p->Memory_p = NULL;
+		Elem_p->Used_p = NULL;
+		Elem_p->Pending_p = NULL;
+		Elem_p->PendingTail_p = NULL;
+		Elem_p->ElementSize = 0;
+		Elem_p->NoElements = 0;
 	}
+}
+
+static void Init_Msg_Queues(void)
+{
+	pthread_once(&message_init_once, Init_Msg_Queues_Impl);
 }
 
 
@@ -295,6 +299,17 @@ int os_mutex_release(g_mutex_t *mutex)
 	return (ret == 0 ? 0 : -1);
 }
 
+/* 包装函数：将 void(*)(void*) 适配为 pthread 期望的 void*(*)(void*) */
+static void *os_task_wrapper(void *arg)
+{
+	void **params = (void **)arg;
+	void (*func)(void *) = (void (*)(void *))params[0];
+	void *user_arg = params[1];
+	free(params);
+	func(user_arg);
+	return NULL;
+}
+
 g_task_t  *os_task_create(void (*func)(void *), void *arg, size_t StackSize, int priority, char *name)
 {
 	pthread_attr_t  attr;
@@ -306,7 +321,7 @@ g_task_t  *os_task_create(void (*func)(void *), void *arg, size_t StackSize, int
 	min_size = sysconf(_SC_THREAD_STACK_MIN);
 	if (min_size == -1)
 		return NULL;
-	
+
 	pthread_attr_init(&attr);
 
 	if (StackSize < (size_t)min_size)
@@ -320,14 +335,23 @@ g_task_t  *os_task_create(void (*func)(void *), void *arg, size_t StackSize, int
 		if (priority > sched_get_priority_max(SCHED_RR))
 			priority = sched_get_priority_max(SCHED_RR);
 
+		pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
 		sparam.sched_priority = priority;
 		pthread_attr_setschedpolicy(&attr, SCHED_RR);
 		pthread_attr_setschedparam(&attr, &sparam);
 	}
 
+	/* 打包 func 和 arg 传给包装函数 */
+	void **params = malloc(2 * sizeof(void *));
+	if (!params) {
+		pthread_attr_destroy(&attr);
+		return NULL;
+	}
+	params[0] = (void *)func;
+	params[1] = arg;
 
-
-	if (pthread_create(&task, &attr, (void*)func, arg) != 0) {
+	if (pthread_create(&task, &attr, os_task_wrapper, params) != 0) {
+		free(params);
 		pthread_attr_destroy(&attr);
 		return NULL;
 	}
@@ -357,6 +381,7 @@ int os_task_delete(g_task_t *task)
 {
 	if (task == NULL)
 		return -1;
+	pthread_join(*task, NULL);
 	free(task);
 	return 0;
 }
@@ -424,11 +449,22 @@ g_msg_queue_t * os_message_create_queue_timeout(size_t ElementSize, unsigned int
 				memset((void *)Elem_p->Used_p, 0, NoElements*sizeof(BOOL));
 				Elem_p->Memory_p = New_p->Memory_p;
 				Elem_p->Pending_p = NULL;
+				Elem_p->PendingTail_p = NULL;
 				Elem_p->ElementSize = ElementSize;
 				Elem_p->NoElements = NoElements;
 
 				New_p->MessageQueue_p->MsgSemaphore_p = os_semaphore_create(0);
 				New_p->MessageQueue_p->ClaimSemaphore_p = os_semaphore_create(NoElements);
+				if (New_p->MessageQueue_p->MsgSemaphore_p == NULL ||
+					New_p->MessageQueue_p->ClaimSemaphore_p == NULL) {
+					if (New_p->MessageQueue_p->MsgSemaphore_p != NULL)
+						os_semaphore_delete(New_p->MessageQueue_p->MsgSemaphore_p);
+					if (New_p->MessageQueue_p->ClaimSemaphore_p != NULL)
+						os_semaphore_delete(New_p->MessageQueue_p->ClaimSemaphore_p);
+					os_memory_deallocate(Elem_p->Used_p);
+					Elem_p->Used_p = NULL;
+					Elem_p->Memory_p = NULL;
+				}
 			}
 		} else {
 			syslog("Message queue is full, need more memory\n");
@@ -443,15 +479,12 @@ g_msg_queue_t * os_message_create_queue_timeout(size_t ElementSize, unsigned int
 		if (MessageArray[ New_p->MessageQueue_p->Index ].Used_p != NULL) {
 			New_p->Next_p = NULL;
 			pthread_mutex_lock(&message_mutex);
-			Current_p = MessageQueueList_p;
-			if (Current_p != NULL) {
-				while (Current_p->Next_p != NULL)
-					Current_p = Current_p->Next_p;
-				
-				Current_p->Next_p = New_p;
+			if (MessageQueueListTail_p != NULL) {
+				MessageQueueListTail_p->Next_p = New_p;
 			} else {
 				MessageQueueList_p = New_p;
 			}
+			MessageQueueListTail_p = New_p;
 			pthread_mutex_unlock(&message_mutex);
 
 			MesQ_p = New_p->MessageQueue_p;
@@ -503,6 +536,7 @@ void os_message_delete_queue2(g_msg_queue_t * MessageQueue, MsgFreeFunc func)
 			os_memory_deallocate( Pending_p);
 			Pending_p = Elem_p->Pending_p;
 		}
+		Elem_p->PendingTail_p = NULL;
 		Elem_p->ElementSize = 0;
 		Elem_p->NoElements = 0;
 		if (Elem_p->Used_p != NULL) {
@@ -532,10 +566,15 @@ void os_message_delete_queue2(g_msg_queue_t * MessageQueue, MsgFreeFunc func)
 		}
 
 		if (Deleted_p != NULL) {
-			if (Deleted_p == MessageQueueList_p)
+			if (Deleted_p == MessageQueueList_p) {
 				MessageQueueList_p = Deleted_p->Next_p;
-			else
+				if (MessageQueueList_p == NULL)
+					MessageQueueListTail_p = NULL;
+			} else {
 				Current_p->Next_p = Deleted_p->Next_p;
+				if (Deleted_p == MessageQueueListTail_p)
+					MessageQueueListTail_p = Current_p;
+			}
 			os_memory_deallocate( Deleted_p->Memory_p);
 			os_memory_deallocate( Deleted_p->MessageQueue_p);
 			os_memory_deallocate( Deleted_p);
@@ -546,71 +585,7 @@ void os_message_delete_queue2(g_msg_queue_t * MessageQueue, MsgFreeFunc func)
 
 void os_message_delete_queue(g_msg_queue_t * MessageQueue)
 {
-	os_MsgQueueList_t  * Current_p = NULL;
-	os_MsgQueueList_t  * Deleted_p = NULL;
-	os_MsgSend_t *Pending_p;
-	os_MsgElem_t*Elem_p;
-
-	if (MessageInitDone == FALSE) {
-		syslog("Message queue not initialize\n");
-		return;
-	}
-	if (MessageQueue == NULL)
-		return;
-
-	if (MessageQueue->Index < QUEUE_NB_MAX) {
-		Elem_p = &MessageArray[MessageQueue->Index];
-		os_semaphore_delete(MessageQueue->MsgSemaphore_p);
-		os_semaphore_delete(MessageQueue->ClaimSemaphore_p);
-
-		pthread_mutex_lock(&message_mutex);
-
-		Elem_p->Memory_p = NULL;
-		Pending_p = Elem_p->Pending_p;
-		while (Pending_p != NULL) {
-			Elem_p->Pending_p = Elem_p->Pending_p->Next_p;
-			os_memory_deallocate( Pending_p);
-			Pending_p = Elem_p->Pending_p;
-		}
-		Elem_p->ElementSize = 0;
-		Elem_p->NoElements = 0;
-		if (Elem_p->Used_p != NULL) {
-			os_memory_deallocate( Elem_p->Used_p);
-			Elem_p->Used_p = NULL;
-		}
-		pthread_mutex_unlock(&message_mutex);
-	}
-	else {
-		syslog("os_message_delete_queue( ) error\n");
-		return;
-	}
-	MessageQueue->Index = QUEUE_NB_MAX;
-
-	pthread_mutex_lock(&message_mutex);
-	if (MessageQueueList_p != NULL) {
-		if (MessageQueueList_p->MessageQueue_p == MessageQueue)
-			Deleted_p = MessageQueueList_p;
-		else {
-			Current_p = MessageQueueList_p;
-			while ((Current_p->Next_p != NULL) && (Deleted_p == NULL)) {
-				if (Current_p->Next_p->MessageQueue_p == MessageQueue)
-					Deleted_p = Current_p->Next_p;
-				else
-					Current_p = Current_p->Next_p;
-			}
-		}
-
-		if (Deleted_p != NULL) {
-			if (Deleted_p == MessageQueueList_p)
-				MessageQueueList_p = Deleted_p->Next_p;
-			else
-				Current_p->Next_p = Deleted_p->Next_p;
-			os_memory_deallocate( Deleted_p->Memory_p);
-			os_memory_deallocate( Deleted_p->MessageQueue_p);
-			os_memory_deallocate( Deleted_p);
-		}
-	}
-	pthread_mutex_unlock(&message_mutex);
+	os_message_delete_queue2(MessageQueue, NULL);
 }
 
 void * os_message_claim_timeout(g_msg_queue_t * MessageQueue, g_clock_t * time)
@@ -659,13 +634,13 @@ void os_message_send(g_msg_queue_t * MessageQueue, void * message)
 			New_p->Next_p = NULL;
 			New_p->Message_p = message;
 			pthread_mutex_lock(&message_mutex);
-			Pending_p = MessageArray[MessageQueue->Index].Pending_p;
-			if (Pending_p != NULL) {
-				while (Pending_p->Next_p != NULL)
-					Pending_p = Pending_p->Next_p;
-				Pending_p->Next_p = New_p;
-			} else
-				MessageArray[ MessageQueue->Index ].Pending_p = New_p;
+			os_MsgElem_t *elem = &MessageArray[MessageQueue->Index];
+			if (elem->PendingTail_p != NULL) {
+				elem->PendingTail_p->Next_p = New_p;
+			} else {
+				elem->Pending_p = New_p;
+			}
+			elem->PendingTail_p = New_p;
 			pthread_mutex_unlock(&message_mutex);
 			os_semaphore_signal(MessageQueue->MsgSemaphore_p);
 		}
@@ -694,6 +669,8 @@ void * os_message_receive_timeout(g_msg_queue_t * MessageQueue, g_clock_t * time
 				Pending_p = Elem_p->Pending_p;
 				if (Pending_p != NULL) {
 					Elem_p->Pending_p = Pending_p->Next_p;
+					if (Elem_p->Pending_p == NULL)
+						Elem_p->PendingTail_p = NULL;
 					Message_p = Pending_p->Message_p;
 					os_memory_deallocate( Pending_p);
 					pthread_mutex_unlock(&message_mutex);
@@ -744,11 +721,13 @@ void os_message_release(g_msg_queue_t * MessageQueue, void* Message)
 		int ret = pthread_mutex_lock(&message_mutex);
 		if(ret==0)
 		{
-			if (((U32)Message >= (U32)(Elem_p->Memory_p))
-			&& ((U32)Message < (U32)(Elem_p->Memory_p) + Elem_p->ElementSize*Elem_p->NoElements)) {
-			Index = ((U32)Message - (U32)(Elem_p->Memory_p))/((U32)(Elem_p->ElementSize));
-			Elem_p->Used_p[Index] = FALSE;
-			os_semaphore_signal(MessageQueue->ClaimSemaphore_p);
+			uintptr_t msg_addr = (uintptr_t)Message;
+			uintptr_t mem_start = (uintptr_t)(Elem_p->Memory_p);
+			uintptr_t mem_end = mem_start + (uintptr_t)Elem_p->ElementSize * Elem_p->NoElements;
+			if (msg_addr >= mem_start && msg_addr < mem_end) {
+				U32 idx = (U32)((msg_addr - mem_start) / Elem_p->ElementSize);
+				Elem_p->Used_p[idx] = FALSE;
+				os_semaphore_signal(MessageQueue->ClaimSemaphore_p);
 			}
 			pthread_mutex_unlock(&message_mutex);
 		}
@@ -1054,41 +1033,35 @@ void os_i64_div(U64 *Result,U64 *Value1,U64 *Value2)
 
 void os_i64_shift_right(U64 *Result,U64 *Value1,U32 ShiftValue)
 {
-	U32 i;
-	U64 V1=*Value1;
-
-	if (ShiftValue == 0)
-	{
+	if (ShiftValue == 0) {
 		*Result = *Value1;
 		return;
 	}
-	for (i=0;i<ShiftValue;i++)
-	{
-		Result->LSW=(V1.LSW>>1)&0x7FFFFFFF;
-		if (V1.MSW&1)
-			Result->LSW|=0x80000000;
-		Result->MSW=(V1.MSW>>1)&0x7FFFFFFF;
-		V1=*Result;
+	if (ShiftValue >= 64) {
+		Result->MSW = 0;
+		Result->LSW = 0;
+		return;
 	}
+	unsigned long long v = (((unsigned long long)Value1->MSW) << 32) | Value1->LSW;
+	v >>= ShiftValue;
+	Result->MSW = (U32)(v >> 32);
+	Result->LSW = (U32)v;
 }
 
 void os_i64_shift_left(U64 *Result,U64 *Value1,U32 ShiftValue)
 {
-	U32 i;
-	U64 V1=*Value1;
-
-	if (ShiftValue == 0)
-	{
+	if (ShiftValue == 0) {
 		*Result = *Value1;
 		return;
 	}
-	for (i=0;i<ShiftValue;i++)
-	{
-		Result->MSW=(V1.MSW<<1);
-		if (V1.LSW&0x80000000)
-			Result->MSW|=1;
-		Result->LSW=(V1.LSW<<1);
-		V1=*Result;
-	}                
+	if (ShiftValue >= 64) {
+		Result->MSW = 0;
+		Result->LSW = 0;
+		return;
+	}
+	unsigned long long v = (((unsigned long long)Value1->MSW) << 32) | Value1->LSW;
+	v <<= ShiftValue;
+	Result->MSW = (U32)(v >> 32);
+	Result->LSW = (U32)v;
 }
 

@@ -243,10 +243,32 @@ void* CommQue_GetEmpty(CommQueID hQue, int32_t timeout) {
 
 int32_t CommQue_PutEmpty(CommQueID hQue, void* pElement) {
     if (!hQue || !pElement) return -1;
-    
+
     CommQue_t* pQue = (CommQue_t*)hQue;
-    
+
     pthread_mutex_lock(&pQue->mutex);
+
+    /* 根据指针计算槽位 index */
+    uintptr_t base = (uintptr_t)pQue->buffer;
+    uintptr_t addr = (uintptr_t)pElement;
+    uintptr_t end  = base + (pQue->maxCount * pQue->elementSize);
+
+    if (addr < base || addr >= end) {
+        pthread_mutex_unlock(&pQue->mutex);
+        return -1;
+    }
+
+    if ((addr - base) % pQue->elementSize != 0) {
+        pthread_mutex_unlock(&pQue->mutex);
+        return -1;
+    }
+
+    uint32_t idx = (uint32_t)((addr - base) / pQue->elementSize);
+
+    /* 将槽位 idx 归还到空队列队尾（read 后面）。
+     * 设置 read = (idx + 1) % maxCount，使该槽位位于 (read - 1) 位置，
+     * 成为下次 GetEmpty 最后取到的空槽。*/
+    pQue->read = (idx + 1) % pQue->maxCount;
     pQue->emptyCount++;
     pthread_cond_signal(&pQue->cond_empty);
     pthread_mutex_unlock(&pQue->mutex);
@@ -255,10 +277,32 @@ int32_t CommQue_PutEmpty(CommQueID hQue, void* pElement) {
 
 int32_t CommQue_PutFull(CommQueID hQue, void* pElement) {
     if (!hQue || !pElement) return -1;
-    
+
     CommQue_t* pQue = (CommQue_t*)hQue;
-    
+
     pthread_mutex_lock(&pQue->mutex);
+
+    /* 根据指针计算槽位 index */
+    uintptr_t base = (uintptr_t)pQue->buffer;
+    uintptr_t addr = (uintptr_t)pElement;
+    uintptr_t end  = base + (pQue->maxCount * pQue->elementSize);
+
+    if (addr < base || addr >= end) {
+        pthread_mutex_unlock(&pQue->mutex);
+        return -1;
+    }
+
+    if ((addr - base) % pQue->elementSize != 0) {
+        pthread_mutex_unlock(&pQue->mutex);
+        return -1;
+    }
+
+    uint32_t idx = (uint32_t)((addr - base) / pQue->elementSize);
+
+    /* 将槽位 idx 提交到满队列队尾（write 后面）。
+     * 设置 write = (idx + 1) % maxCount，使该槽位位于 (write - 1) 位置，
+     * 成为下次 GetFull 最后取到的满包。*/
+    pQue->write = (idx + 1) % pQue->maxCount;
     pQue->fullCount++;
     pthread_cond_signal(&pQue->cond_full);
     pthread_mutex_unlock(&pQue->mutex);
@@ -273,15 +317,28 @@ int32_t CommQue_PutFullFront(CommQueID hQue, void* pElement) {
 
     pthread_mutex_lock(&pQue->mutex);
 
-    if (pQue->fullCount >= pQue->maxCount || pQue->isDestroyed) {
+    /* 根据指针计算槽位 index */
+    uintptr_t base = (uintptr_t)pQue->buffer;
+    uintptr_t addr = (uintptr_t)pElement;
+    uintptr_t end  = base + (pQue->maxCount * pQue->elementSize);
+
+    if (addr < base || addr >= end) {
         pthread_mutex_unlock(&pQue->mutex);
         return -1;
     }
 
-    /* read 回退一格，新槽成为下一次 GetFull 取到的第一个元素 */
-    pQue->read = (pQue->read + pQue->maxCount - 1) % pQue->maxCount;
-    pQue->fullCount++;
+    if ((addr - base) % pQue->elementSize != 0) {
+        pthread_mutex_unlock(&pQue->mutex);
+        return -1;
+    }
 
+    uint32_t idx = (uint32_t)((addr - base) / pQue->elementSize);
+
+    /* 将槽位 idx 插到满队列队首（read 前面）。
+     * 设置 read = idx，使该槽位位于 (read - 1) 位置，
+     * 成为下次 GetFull 优先取到的满包。*/
+    pQue->read = idx;
+    pQue->fullCount++;
     pthread_cond_signal(&pQue->cond_full);
     pthread_mutex_unlock(&pQue->mutex);
 
@@ -295,15 +352,28 @@ int32_t CommQue_PutEmptyFront(CommQueID hQue, void* pElement) {
 
     pthread_mutex_lock(&pQue->mutex);
 
-    if (pQue->emptyCount >= pQue->maxCount || pQue->isDestroyed) {
+    /* 根据指针计算槽位 index */
+    uintptr_t base = (uintptr_t)pQue->buffer;
+    uintptr_t addr = (uintptr_t)pElement;
+    uintptr_t end  = base + (pQue->maxCount * pQue->elementSize);
+
+    if (addr < base || addr >= end) {
         pthread_mutex_unlock(&pQue->mutex);
         return -1;
     }
 
-    /* write 回退一格，新槽成为下一次 GetEmpty 取到的第一个空槽 */
-    pQue->write = (pQue->write + pQue->maxCount - 1) % pQue->maxCount;
-    pQue->emptyCount++;
+    if ((addr - base) % pQue->elementSize != 0) {
+        pthread_mutex_unlock(&pQue->mutex);
+        return -1;
+    }
 
+    uint32_t idx = (uint32_t)((addr - base) / pQue->elementSize);
+
+    /* 将槽位 idx 插到空队列队首（write 前面）。
+     * 设置 write = idx，使该槽位位于 (write - 1) 位置，
+     * 成为下次 GetEmpty 优先取到的空槽。*/
+    pQue->write = idx;
+    pQue->emptyCount++;
     pthread_cond_signal(&pQue->cond_empty);
     pthread_mutex_unlock(&pQue->mutex);
 

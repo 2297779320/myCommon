@@ -12,29 +12,22 @@
 
 // 设置线程CPU亲和性（使用uint32_t掩码）
 int set_thread_affinity_mask(pthread_t *thread, uint32_t mask) {
+#ifdef __linux__
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+
+    for (int i = 0; i < CPU_SETSIZE && i < 32; i++) {
+        if (mask & (1U << i)) {
+            CPU_SET(i, &cpuset);
+        }
+    }
+
+    return pthread_setaffinity_np(*thread, sizeof(cpu_set_t), &cpuset);
+#else
     (void)thread;
     (void)mask;
-// #ifdef __linux__
-//     // 如果有Linux支持，使用原生CPU亲和性
-//     #define _GNU_SOURCE
-//     #include <sched.h>
-    
-//     cpu_set_t cpuset;
-//     CPU_ZERO(&cpuset);
-    
-//     for (int i = 0; i < CPU_SETSIZE && i < 32; i++) {
-//         if (mask & (1U << i)) {
-//             CPU_SET(i, &cpuset);
-//         }
-//     }
-    
-//     return pthread_setaffinity_np(*thread, sizeof(cpu_set_t), &cpuset);
-// #else
-//     // 非Linux平台，记录日志或使用其他方法
-//     printf("Setting CPU affinity mask: 0x%08X\n", mask);
-//     return 0; // 返回成功，实际可能不执行任何操作
-// #endif
-return 0;
+    return 0;
+#endif
 }
 
 // 获取当前线程运行的CPU核心
